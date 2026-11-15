@@ -1,160 +1,43 @@
 import { auth, db } from "./firebase-config.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { collection, getDocs, doc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-let currentUser = null;
-let userData = null;
-let consumptionChartInstance = null;
-let valueChartInstance = null;
-
-const TARIFF_RATE = 0.75; // R$ 0,75 por kWh
-
-onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-        window.location.href = "index.html";
-        return;
-    }
-    currentUser = user;
-    document.getElementById("clientEmailDisplay").textContent = user.email;
-
-    const userDocRef = doc(db, "users", user.uid);
-    let userSnap = await getDoc(userDocRef);
-    
-    if (!userSnap.exists()) {
-        const altRef = doc(db, "users", user.email.replace(/[^a-zA-Z0-9]/g, "_"));
-        userSnap = await getDoc(altRef);
-    }
-
-    if (userSnap.exists()) {
-        userData = userSnap.data();
-    } else {
-        userData = { email: user.email, addresses: [] };
-    }
-
-    await loadClientData(user.email);
+const $=id=>document.getElementById(id), RATE=0.75;
+const money=n=>Number(n||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let consumptionChart,valueChart;
+onAuthStateChanged(auth,async user=>{
+ if(!user){location.href="index.html";return;}
+ $("clientEmailDisplay").textContent=user.email||"";
+ try{
+  const snap=await getDoc(doc(db,"users",user.uid));
+  if(!snap.exists()||snap.data().active===false){await signOut(auth);location.href="index.html";return;}
+  const profile=snap.data();
+  if(profile.role==="admin"){location.href="dashboard-admin.html";return;}
+  $("clientStatAddresses").textContent=(profile.addresses||[]).length;
+  await loadReadings(user.uid);
+ }catch(e){console.error(e);alert("Não foi possível carregar seus dados. Verifique a conexão ou as regras do Firebase.");}
 });
-
-document.getElementById("btnLogout").addEventListener("click", async () => {
-    await signOut(auth);
-    window.location.href = "index.html";
-});
-
-async function loadClientData(email) {
-    const q = query(collection(db, "readings"), where("userEmail", "==", email));
-    const querySnapshot = await getDocs(q);
-    const readings = [];
-    querySnapshot.forEach(d => {
-        readings.push({ id: d.id, ...d.data() });
-    });
-
-    const addresses = userData.addresses || [];
-    document.getElementById("clientStatAddresses").textContent = addresses.length;
-
-    let totalKwh = 0;
-    let totalEconomy = 0;
-
-    readings.forEach(r => {
-        const kwh = Number(r.kwh) || 0;
-        totalKwh += kwh;
-        const neoCost = kwh * 1.10;
-        const solarCost = (kwh * TARIFF_RATE) + (Number(r.neoFee) || 0) - (Number(r.fioB) || 0);
-        totalEconomy += Math.max(0, neoCost - solarCost);
-    });
-
-    document.getElementById("clientStatKwh").textContent = `${totalKwh.toLocaleString()} kWh`;
-    document.getElementById("clientStatEconomy").textContent = `R$ ${totalEconomy.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-    renderClientTable(readings);
-    renderClientCharts(readings);
+$("btnLogout").addEventListener("click",async()=>{await signOut(auth);location.href="index.html";});
+async function loadReadings(uid){
+ const snap=await getDocs(query(collection(db,"readings"),where("ownerUid","==",uid)));
+ const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.period).localeCompare(String(b.period)));
+ const kwh=rows.reduce((s,r)=>s+(Number(r.kwh)||0),0);
+ const economy=rows.reduce((s,r)=>{const c=Number(r.kwh)||0;return s+Math.max(0,c*1.10-(c*RATE)-(Number(r.neoFee)||0)+(Number(r.fioB)||0));},0);
+ $("clientStatKwh").textContent=`${kwh.toLocaleString("pt-BR")} kWh`;$("clientStatEconomy").textContent=money(economy);
+ renderTable(rows);renderCharts(rows);
 }
-
-function renderClientTable(readings) {
-    const tbody = document.getElementById("clientReadingsTableBody");
-    tbody.innerHTML = "";
-    if (readings.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-400">Nenhuma fatura registrada para os seus endereços.</td></tr>`;
-        return;
-    }
-
-    readings.forEach(r => {
-        const kwh = Number(r.kwh) || 0;
-        const solarTotal = (kwh * TARIFF_RATE) + (Number(r.neoFee) || 0) - (Number(r.fioB) || 0);
-        const neoCost = kwh * 1.10;
-        const economy = Math.max(0, neoCost - solarTotal);
-
-        tbody.innerHTML += `
-            <tr class="border-b border-slate-100 hover:bg-slate-50">
-                <td class="p-4 font-semibold text-slate-800">${r.period}</td>
-                <td class="p-4 text-xs text-slate-600">${r.address}</td>
-                <td class="p-4">${r.initialReading} / ${r.finalReading}</td>
-                <td class="p-4 font-bold text-emerald-600">${kwh} kWh</td>
-                <td class="p-4">R$ ${Number(r.neoFee || 0).toFixed(2)}</td>
-                <td class="p-4 text-red-600">- R$ ${Number(r.fioB || 0).toFixed(2)}</td>
-                <td class="p-4 font-bold text-slate-800">R$ ${solarTotal.toFixed(2)}</td>
-                <td class="p-4 font-bold text-emerald-600">+ R$ ${economy.toFixed(2)}</td>
-            </tr>
-        `;
-    });
+function renderTable(rows){
+ const body=$("clientReadingsTableBody");
+ if(!rows.length){body.innerHTML='<tr><td colspan="8" class="p-4 text-center text-slate-400">Nenhuma fatura registrada.</td></tr>';return;}
+ body.innerHTML=rows.map(r=>{const c=Number(r.kwh)||0,solar=c*RATE+(Number(r.neoFee)||0)-(Number(r.fioB)||0),economy=Math.max(0,c*1.10-solar);
+ return `<tr class="border-b border-slate-100"><td class="p-4 font-semibold">${esc(r.period)}</td><td class="p-4">${esc(r.address)}</td><td class="p-4">${esc(r.initialReading)} / ${esc(r.finalReading)}</td><td class="p-4 font-bold text-emerald-600">${c.toLocaleString("pt-BR")} kWh</td><td class="p-4">${money(r.neoFee)}</td><td class="p-4">${money(r.fioB)}</td><td class="p-4 font-bold">${money(solar)}</td><td class="p-4 font-bold text-emerald-600">${money(economy)}</td></tr>`;}).join("");
 }
-
-function renderClientCharts(readings) {
-    const periods = [...new Set(readings.map(r => r.period))];
-    const kwhData = periods.map(p => readings.filter(r => r.period === p).reduce((sum, r) => sum + (Number(r.kwh) || 0), 0));
-    const valueData = periods.map(p => readings.filter(r => r.period === p).reduce((sum, r) => {
-        const kwh = Number(r.kwh) || 0;
-        return sum + ((kwh * TARIFF_RATE) + (Number(r.neoFee) || 0) - (Number(r.fioB) || 0));
-    }, 0));
-
-    const economyData = periods.map(p => readings.filter(r => r.period === p).reduce((sum, r) => {
-        const kwh = Number(r.kwh) || 0;
-        const solar = (kwh * TARIFF_RATE) + (Number(r.neoFee) || 0) - (Number(r.fioB) || 0);
-        const neo = kwh * 1.10;
-        return sum + Math.max(0, neo - solar);
-    }, 0));
-
-    const ctxConsumption = document.getElementById("clientConsumptionChart").getContext("2d");
-    if (consumptionChartInstance) consumptionChartInstance.destroy();
-
-    consumptionChartInstance = new Chart(ctxConsumption, {
-        type: 'bar',
-        data: {
-            labels: periods.length ? periods : ['Sem dados'],
-            datasets: [{
-                label: 'Consumo (kWh)',
-                data: kwhData.length ? kwhData : [0],
-                backgroundColor: '#10b981',
-                borderRadius: 8
-            }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-    });
-
-    const ctxValue = document.getElementById("clientValueChart").getContext("2d");
-    if (valueChartInstance) valueChartInstance.destroy();
-
-    valueChartInstance = new Chart(ctxValue, {
-        type: 'line',
-        data: {
-            labels: periods.length ? periods : ['Sem dados'],
-            datasets: [
-                {
-                    label: 'Valor Solar (R$)',
-                    data: valueData.length ? valueData : [0],
-                    borderColor: '#0B2545',
-                    backgroundColor: 'rgba(11, 37, 69, 0.1)',
-                    fill: true,
-                    tension: 0.3
-                },
-                {
-                    label: 'Economia Gerada (R$)',
-                    data: economyData.length ? economyData : [0],
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    fill: true,
-                    tension: 0.3
-                }
-            ]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-    });
+function renderCharts(rows){
+ const periods=[...new Set(rows.map(r=>r.period))],consumption=periods.map(p=>rows.filter(r=>r.period===p).reduce((s,r)=>s+(Number(r.kwh)||0),0));
+ const solar=periods.map(p=>rows.filter(r=>r.period===p).reduce((s,r)=>s+(Number(r.kwh)||0)*RATE+(Number(r.neoFee)||0)-(Number(r.fioB)||0),0));
+ const economy=periods.map(p=>rows.filter(r=>r.period===p).reduce((s,r)=>{const c=Number(r.kwh)||0;return s+Math.max(0,c*1.10-(c*RATE)-(Number(r.neoFee)||0)+(Number(r.fioB)||0));},0));
+ const labels=periods.length?periods:["Sem dados"];
+ if(consumptionChart)consumptionChart.destroy();if(valueChart)valueChart.destroy();
+ consumptionChart=new Chart($("clientConsumptionChart"),{type:"bar",data:{labels,datasets:[{label:"Consumo (kWh)",data:consumption.length?consumption:[0],backgroundColor:"#16a34a",borderRadius:8}]},options:{responsive:true,maintainAspectRatio:false}});
+ valueChart=new Chart($("clientValueChart"),{type:"line",data:{labels,datasets:[{label:"Valor Solar (R$)",data:solar.length?solar:[0],borderColor:"#2563eb",tension:.3},{label:"Economia (R$)",data:economy.length?economy:[0],borderColor:"#16a34a",tension:.3}]},options:{responsive:true,maintainAspectRatio:false}});
 }

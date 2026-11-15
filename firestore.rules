@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isActiveUser() {\n      return signedIn()\n        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active != false;\n    }\n    function isAdmin() {
+      return signedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active != false;
+    }
+    match /users/{userId} {
+      allow read: if isAdmin() || (isActiveUser() && request.auth.uid == userId);
+      // O próprio usuário não pode alterar seu perfil ou elevar sua função.
+      allow create, update, delete: if isAdmin();
+    }
+    match /readings/{readingId} {
+      allow read: if isAdmin() || (isActiveUser() && resource.data.ownerUid == request.auth.uid);
+      allow create, update, delete: if isAdmin();
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

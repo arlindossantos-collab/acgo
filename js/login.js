@@ -1,50 +1,29 @@
 import { auth, db } from "./firebase-config.js";
-import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-const loginForm = document.getElementById("loginForm");
+const form = document.getElementById("loginForm");
 const alertBox = document.getElementById("alertBox");
-
-function showAlert(msg, type = "error") {
-    alertBox.className = `mb-4 p-3 rounded-lg text-sm ${type === "error" ? "bg-red-50 text-red-700 border border-red-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`;
-    alertBox.textContent = msg;
-    alertBox.classList.remove("hidden");
+function showAlert(message) {
+  alertBox.textContent = message;
+  alertBox.className = "mb-4 p-3 rounded-xl text-sm bg-red-50 text-red-700 border border-red-200";
 }
-
-loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-
-    try {
-        const userCred = await signInWithEmailAndPassword(auth, email, password);
-        const user = userCred.user;
-
-        const userDocRef = doc(db, "users", user.uid);
-        let userSnap = await getDoc(userDocRef);
-
-        let role = "client";
-        if (userSnap.exists()) {
-            role = userSnap.data().role || "client";
-        } else {
-            // Tentar fallback por email
-            const altRef = doc(db, "users", email.replace(/[^a-zA-Z0-9]/g, "_"));
-            const altSnap = await getDoc(altRef);
-            if (altSnap.exists()) {
-                role = altSnap.data().role || "client";
-            } else {
-                // Criar padrão cliente se não existir
-                await setDoc(userDocRef, { email: user.email, role: "client", addresses: [] }, { merge: true });
-            }
-        }
-
-        if (role === "admin") {
-            window.location.href = "dashboard-admin.html";
-        } else {
-            window.location.href = "dashboard-client.html";
-        }
-    } catch (error) {
-        console.error(error);
-        showAlert("Erro ao entrar: " + error.message);
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = document.getElementById("loginBtn");
+  button.disabled = true; button.textContent = "Verificando acesso...";
+  try {
+    const credential = await signInWithEmailAndPassword(auth,
+      document.getElementById("email").value.trim(),
+      document.getElementById("password").value);
+    const profile = await getDoc(doc(db, "users", credential.user.uid));
+    if (!profile.exists() || profile.data().active === false) {
+      await signOut(auth);
+      throw new Error("Perfil não cadastrado ou desativado. Procure o administrador.");
     }
+    location.href = profile.data().role === "admin" ? "dashboard-admin.html" : "dashboard-client.html";
+  } catch (error) {
+    showAlert(error.code === "auth/invalid-credential" ? "E-mail ou senha inválidos." : error.message || "Não foi possível entrar.");
+    button.disabled = false; button.innerHTML = '<i class="fa-solid fa-right-to-bracket mr-2"></i>Entrar';
+  }
 });
