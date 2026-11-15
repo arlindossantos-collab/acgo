@@ -1,0 +1,40 @@
+:root {
+  --acgo-navy: #0A2558;
+  --acgo-blue: #1E88E5;
+  --acgo-green: #2E7D32;
+  --acgo-gold: #FBC02D;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.nav-btn {
+  color: #475569;
+}
+
+.nav-btn:hover {
+  color: var(--acgo-navy);
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+.nav-btn.active {
+  background-color: #ffffff;
+  color: var(--acgo-navy);
+  box-shadow: 0 1px 3px rgba(10, 37, 88, 0.12);
+}
+
+/* Barra de rolagem discreta */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}

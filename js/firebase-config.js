@@ -1,16 +1,28 @@
-// Configure este arquivo com os dados do seu projeto em Firebase Console.
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-export const firebaseConfig = {
- apiKey: "AIzaSyAo6SGtUGfadJiqx-GGJLXs7p51tkzv_dw",
-  authDomain: "acgo-energia-solar.firebaseapp.com",
-  projectId: "acgo-energia-solar",
-  storageBucket: "acgo-energia-solar.firebasestorage.app",
-  messagingSenderId: "1079975869742",
-  appId: "1:1079975869742:web:294d17e4c676c2bb700ebf"
+/**
+ * Configuração do Firebase Firestore - ACGO Energia Solar
+ * Substitua as chaves abaixo pelos dados do seu projeto no Firebase Console.
+ */
+const firebaseConfig = {
+  apiKey: "SUA_API_KEY_AQUI",
+  authDomain: "seu-projeto.firebaseapp.com",
+  projectId: "seu-projeto",
+  storageBucket: "seu-projeto.appspot.com",
+  messagingSenderId: "000000000000",
+  appId: "1:000000000000:web:000000000000000000"
 };
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+let db = null;
+let isFirebaseConnected = false;
+
+try {
+  if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "SUA_API_KEY_AQUI") {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    isFirebaseConnected = true;
+    console.log("Firebase Firestore conectado com sucesso.");
+  } else {
+    console.warn("Credenciais do Firebase não configuradas. Operando em modo LocalStorage.");
+  }
+} catch (error) {
+  console.error("Erro ao inicializar Firebase:", error);
+}
