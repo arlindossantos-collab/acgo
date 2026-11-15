@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolarPlant Manager - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="h-full flex items-center justify-center bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900">
+    <div class="max-w-md w-full mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden p-8">
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl mb-4 text-2xl shadow-inner">
+                <i class="fa-solid fa-solar-panel"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-slate-800">SolarPlant Manager</h1>
+            <p class="text-sm text-slate-500 mt-1">Controle Inteligente de Usina Solar</p>
+        </div>
+
+        <div id="alertBox" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+
+        <form id="loginForm" class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">E-mail de Acesso</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-regular fa-envelope"></i></span>
+                    <input type="email" id="email" required class="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition" placeholder="seu@email.com">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Senha</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><i class="fa-solid fa-lock"></i></span>
+                    <input type="password" id="password" required class="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition" placeholder="••••••••">
+                </div>
+            </div>
+            <button type="submit" id="loginBtn" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-right-to-bracket"></i> Entrar no Sistema
+            </button>
+        </form>
+
+        <div class="mt-6 text-center border-t border-slate-100 pt-4">
+            <p class="text-xs text-slate-500">Acesso restrito a clientes e administradores cadastrados.</p>
+        </div>
+    </div>
+
+    <script type="module" src="js/login.js"></script>
+</body>
+</html>
