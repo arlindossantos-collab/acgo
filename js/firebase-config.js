@@ -1,9 +1,7 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// Credenciais reais configuradas para o projeto ACGO Energia Solar
 export const firebaseConfig = {
     apiKey: "AIzaSyAo6SGtUGfadJiqx-GGJLXs7p51tkzv_dw",
     authDomain: "acgo-energia-solar.firebaseapp.com",

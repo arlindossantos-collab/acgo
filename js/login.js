@@ -21,13 +21,21 @@ loginForm.addEventListener("submit", async (e) => {
         const user = userCred.user;
 
         const userDocRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userDocRef);
+        let userSnap = await getDoc(userDocRef);
 
         let role = "client";
         if (userSnap.exists()) {
             role = userSnap.data().role || "client";
         } else {
-            await setDoc(userDocRef, { email: user.email, role: "client", addresses: [] }, { merge: true });
+            // Tentar fallback por email
+            const altRef = doc(db, "users", email.replace(/[^a-zA-Z0-9]/g, "_"));
+            const altSnap = await getDoc(altRef);
+            if (altSnap.exists()) {
+                role = altSnap.data().role || "client";
+            } else {
+                // Criar padrão cliente se não existir
+                await setDoc(userDocRef, { email: user.email, role: "client", addresses: [] }, { merge: true });
+            }
         }
 
         if (role === "admin") {

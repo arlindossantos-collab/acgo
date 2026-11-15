@@ -19,7 +19,16 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById("userEmailDisplay").textContent = user.email;
 
     const userSnap = await getDoc(doc(db, "users", user.uid));
-    if (!userSnap.exists() || userSnap.data().role !== "admin") {
+    let role = "client";
+    if (userSnap.exists()) {
+        role = userSnap.data().role || "client";
+    } else {
+        const altRef = doc(db, "users", user.email.replace(/[^a-zA-Z0-9]/g, "_"));
+        const altSnap = await getDoc(altRef);
+        if (altSnap.exists()) role = altSnap.data().role || "client";
+    }
+
+    if (role !== "admin") {
         alert("Acesso negado. Apenas administradores.");
         window.location.href = "dashboard-client.html";
         return;
