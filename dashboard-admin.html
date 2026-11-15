@@ -3,27 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Administrador - SolarPlant Manager</title>
+    <title>Painel Administrador - ACGO Energia Solar</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="h-full flex flex-col">
     <!-- Navbar -->
-    <header class="bg-slate-900 text-white shadow-md z-20">
+    <header class="bg-blue-900 text-white shadow-md z-20 border-b-4 border-amber-500">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-emerald-500 text-slate-900 rounded-xl flex items-center justify-center font-bold text-lg shadow">
-                    <i class="fa-solid fa-solar-panel"></i>
+                <div class="w-10 h-10 rounded-full overflow-hidden shadow border border-white/30">
+                    <img src="img/logo.jpg" alt="ACGO Logo" class="w-full h-full object-cover">
                 </div>
                 <div>
-                    <span class="font-bold text-lg tracking-wide">SolarPlant</span>
-                    <span class="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-semibold ml-2">ADMIN</span>
+                    <span class="font-bold text-lg tracking-wide">ACGO Energia Solar</span>
+                    <span class="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-semibold ml-2">ADMIN</span>
                 </div>
             </div>
             <div class="flex items-center gap-4">
                 <span id="userEmailDisplay" class="text-sm text-slate-300 hidden sm:inline"></span>
-                <button id="btnLogout" class="bg-slate-800 hover:bg-red-600 text-slate-200 hover:text-white px-3 py-1.5 rounded-lg text-sm transition flex items-center gap-2">
+                <button id="btnLogout" class="bg-blue-800 hover:bg-red-600 text-slate-200 hover:text-white px-3 py-1.5 rounded-lg text-sm transition flex items-center gap-2">
                     <i class="fa-solid fa-power-off"></i> Sair
                 </button>
             </div>
@@ -34,7 +34,7 @@
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 overflow-y-auto">
         <!-- Tabs Navigation -->
         <div class="flex border-b border-slate-300 mb-6 gap-6">
-            <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn pb-3 font-semibold text-emerald-600 border-b-2 border-emerald-600 flex items-center gap-2">
+            <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn pb-3 font-semibold text-blue-900 border-b-2 border-blue-900 flex items-center gap-2">
                 <i class="fa-solid fa-chart-pie"></i> Visão Geral da Usina
             </button>
             <button onclick="switchTab('users')" id="tab-users" class="tab-btn pb-3 font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-2">
@@ -48,26 +48,26 @@
         <!-- TAB 1: OVERVIEW -->
         <div id="section-overview" class="space-y-6">
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-l-blue-900">
                     <p class="text-xs font-semibold text-slate-400 uppercase">Total de Usuários</p>
                     <h3 id="statTotalUsers" class="text-3xl font-bold text-slate-800 mt-2">0</h3>
                 </div>
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-l-emerald-600">
                     <p class="text-xs font-semibold text-slate-400 uppercase">Endereços Cadastrados</p>
                     <h3 id="statTotalAddresses" class="text-3xl font-bold text-slate-800 mt-2">0</h3>
                 </div>
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-l-emerald-500">
                     <p class="text-xs font-semibold text-slate-400 uppercase">Consumo Total (kWh)</p>
                     <h3 id="statTotalKwh" class="text-3xl font-bold text-emerald-600 mt-2">0 kWh</h3>
                 </div>
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-l-amber-500">
                     <p class="text-xs font-semibold text-slate-400 uppercase">Economia Total Gerada</p>
-                    <h3 id="statTotalEconomy" class="text-3xl font-bold text-blue-600 mt-2">R$ 0,00</h3>
+                    <h3 id="statTotalEconomy" class="text-3xl font-bold text-blue-900 mt-2">R$ 0,00</h3>
                 </div>
             </div>
 
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <h3 class="text-lg font-bold text-slate-800 mb-4"><i class="fa-solid fa-chart-line text-emerald-600"></i> Histórico Consumo Geral da Usina</h3>
+                <h3 class="text-lg font-bold text-slate-800 mb-4"><i class="fa-solid fa-chart-line text-blue-900"></i> Histórico Consumo Geral da Usina</h3>
                 <div style="height: 320px;"><canvas id="adminOverviewChart"></canvas></div>
             </div>
         </div>
@@ -76,7 +76,7 @@
         <div id="section-users" class="space-y-6 hidden">
             <div class="flex justify-between items-center">
                 <h2 class="text-xl font-bold text-slate-800">Gerenciamento de Usuários e Endereços</h2>
-                <button onclick="openUserModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow transition flex items-center gap-2">
+                <button onclick="openUserModal()" class="bg-blue-900 hover:bg-blue-800 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow transition flex items-center gap-2">
                     <i class="fa-solid fa-user-plus"></i> Novo Usuário / Endereço
                 </button>
             </div>
@@ -102,7 +102,7 @@
         <div id="section-readings" class="space-y-6 hidden">
             <div class="flex justify-between items-center">
                 <h2 class="text-xl font-bold text-slate-800">Lançamento de Leituras e Faturamento (Tarifa: R$ 0,75 / kWh)</h2>
-                <button onclick="openReadingModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow transition flex items-center gap-2">
+                <button onclick="openReadingModal()" class="bg-blue-900 hover:bg-blue-800 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow transition flex items-center gap-2">
                     <i class="fa-solid fa-file-invoice-dollar"></i> Nova Leitura / Fatura
                 </button>
             </div>
@@ -138,15 +138,15 @@
             <form id="userForm" class="space-y-4">
                 <div>
                     <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">E-mail do Usuário</label>
-                    <input type="email" id="modalUserEmail" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="cliente@email.com">
+                    <input type="email" id="modalUserEmail" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none" placeholder="cliente@email.com">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Senha Inicial</label>
-                    <input type="password" id="modalUserPass" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="••••••••">
+                    <input type="password" id="modalUserPass" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none" placeholder="••••••••">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Perfil de Acesso</label>
-                    <select id="modalUserRole" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <select id="modalUserRole" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none">
                         <option value="client">Usuário Comum (Cliente)</option>
                         <option value="admin">Administrador</option>
                     </select>
@@ -154,7 +154,7 @@
                 <div class="border-t border-slate-100 pt-3">
                     <div class="flex justify-between items-center mb-2">
                         <label class="block text-xs font-semibold uppercase text-slate-600">Endereços do Cliente</label>
-                        <button type="button" onclick="addAddressField()" class="text-xs text-emerald-600 hover:underline font-semibold">+ Adicionar Endereço</button>
+                        <button type="button" onclick="addAddressField()" class="text-xs text-blue-900 hover:underline font-semibold">+ Adicionar Endereço</button>
                     </div>
                     <div id="addressContainer" class="space-y-2 max-h-40 overflow-y-auto pr-1">
                         <!-- Campos de endereço dinâmicos -->
@@ -162,7 +162,7 @@
                 </div>
                 <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
                     <button type="button" onclick="closeUserModal()" class="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg">Cancelar</button>
-                    <button type="submit" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow">Salvar Cadastro</button>
+                    <button type="submit" class="px-4 py-2 text-sm bg-blue-900 hover:bg-blue-800 text-white font-semibold rounded-lg shadow">Salvar Cadastro</button>
                 </div>
             </form>
         </div>
@@ -178,41 +178,41 @@
             <form id="readingForm" class="space-y-4">
                 <div>
                     <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Período (Mês/Ano)</label>
-                    <input type="text" id="readPeriod" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Ex: Outubro/2026">
+                    <input type="text" id="readPeriod" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none" placeholder="Ex: Outubro/2026">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Selecionar Endereço</label>
-                    <select id="readAddressSelect" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <select id="readAddressSelect" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none">
                         <!-- Preenchido via JS -->
                     </select>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Leitura Inicial (kWh)</label>
-                        <input type="number" step="0.01" id="readInitial" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="0.00">
+                        <input type="number" step="0.01" id="readInitial" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none" placeholder="0.00">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Leitura Final (kWh)</label>
-                        <input type="number" step="0.01" id="readFinal" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="0.00">
+                        <input type="number" step="0.01" id="readFinal" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none" placeholder="0.00">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Taxa Neoenergia (R$)</label>
-                        <input type="number" step="0.01" id="readNeoFee" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value="0.00">
+                        <input type="number" step="0.01" id="readNeoFee" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none" value="0.00">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Desconto Fio B (R$)</label>
-                        <input type="number" step="0.01" id="readFioB" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value="0.00">
+                        <input type="number" step="0.01" id="readFioB" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 outline-none" value="0.00">
                     </div>
                 </div>
-                <div class="p-3 bg-emerald-50 rounded-lg text-xs text-emerald-800 flex justify-between items-center">
+                <div class="p-3 bg-blue-50 rounded-lg text-xs text-blue-900 flex justify-between items-center border border-blue-200">
                     <span>Tarifa Solar Aplicada: <strong>R$ 0,75 / kWh</strong></span>
                     <span id="previewTotalCalc" class="font-bold text-sm">Total: R$ 0,00</span>
                 </div>
                 <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
                     <button type="button" onclick="closeReadingModal()" class="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg">Cancelar</button>
-                    <button type="submit" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow">Lançar Fatura</button>
+                    <button type="submit" class="px-4 py-2 text-sm bg-blue-900 hover:bg-blue-800 text-white font-semibold rounded-lg shadow">Lançar Fatura</button>
                 </div>
             </form>
         </div>
