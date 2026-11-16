@@ -26,8 +26,12 @@ const app = {
 
   async init() {
     this.updateDbBadge();
-    await this.loadAllData();
-    await this.seedInitialDataIfEmpty();
+    try {
+      await this.loadAllData();
+      await this.seedInitialDataIfEmpty();
+    } catch (err) {
+      console.error('Erro na carga inicial:', err);
+    }
 
     const savedUserId = sessionStorage.getItem('acgo_logged_user_id');
     const validUser = this.state.users.find(u => u.id === savedUserId);
@@ -89,15 +93,41 @@ const app = {
 
   async handleLogin(e) {
     e.preventDefault();
-    const emailInput = document.getElementById('loginEmail').value.trim().toLowerCase();
-    const passInput = document.getElementById('loginPassword').value;
+    const emailInput = String(document.getElementById('loginEmail').value || '').trim().toLowerCase();
+    const passInput = String(document.getElementById('loginPassword').value || '').trim();
     const errorEl = document.getElementById('loginErrorMsg');
+    const submitBtn = document.getElementById('loginSubmitBtn');
 
-    await this.loadAllData();
+    errorEl.classList.add('hidden');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Verificando credenciais...';
+    }
 
-    const matchedUser = this.state.users.find(
-      u => (u.email || '').trim().toLowerCase() === emailInput && (u.password || '') === passInput
-    );
+    try {
+      await this.loadAllData();
+      await this.seedInitialDataIfEmpty();
+    } catch (err) {
+      console.error('Erro ao consultar usuários:', err);
+      errorEl.textContent = `Erro ao conectar ao banco: ${err.message || 'verifique as permissões do Firestore.'}`;
+      errorEl.classList.remove('hidden');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Entrar na Plataforma';
+      }
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Entrar na Plataforma';
+    }
+
+    const matchedUser = this.state.users.find(u => {
+      const dbEmail = String(u.email ?? '').trim().toLowerCase();
+      const dbPass = String(u.password ?? '').trim();
+      return dbEmail === emailInput && dbPass === passInput && passInput.length > 0;
+    });
 
     if (!matchedUser) {
       errorEl.textContent = 'E-mail ou senha inválidos. Verifique com o administrador.';
@@ -105,7 +135,6 @@ const app = {
       return;
     }
 
-    errorEl.classList.add('hidden');
     document.getElementById('loginForm').reset();
     sessionStorage.setItem('acgo_logged_user_id', matchedUser.id);
     this.enterApp(matchedUser.id);
@@ -114,6 +143,11 @@ const app = {
   enterApp(userId) {
     this.state.activeSessionUserId = userId;
     const user = this.getActiveUser();
+    if (!user) {
+      this.showLoginScreen();
+      return;
+    }
+
     document.getElementById('loggedUserBadge').textContent =
       `${user.name} (${user.role === 'administrador' ? 'Admin' : 'Comum'})`;
 
@@ -495,12 +529,11 @@ const app = {
     if (this.state.charts.consumption) this.state.charts.consumption.destroy();
     if (this.state.charts.financial) this.state.charts.financial.destroy();
 
-    // 1. Coleta os endereços presentes nas faturas filtradas mantendo a ordem da paleta
     const presentAddressIds = [...new Set(invoices.map(i => i.addressId))].sort((a, b) => {
       return this.state.addresses.findIndex(x => x.id === a) - this.state.addresses.findIndex(x => x.id === b);
     });
 
-    // 2. GRÁFICO 1 (BARRAS): Agrupado por cor/endereço lado a lado, com rótulo curto MMM/AAAA abaixo
+    // GRÁFICO 1 (BARRAS): Agrupado por cor/endereço lado a lado, com rótulo curto MMM/AAAA abaixo
     const groupedItems = [];
     presentAddressIds.forEach(addrId => {
       const addrInvoices = invoices
@@ -513,7 +546,6 @@ const app = {
     const barValues = groupedItems.map(inv => this.calculateInvoice(inv).consumption);
     const barColors = groupedItems.map(inv => this.getAddressColor(inv.addressId).hex);
 
-    // Datasets de legenda no topo com a cor e nome curto de cada endereço
     const consumptionLegendDatasets = presentAddressIds.map((addrId, index) => {
       const addr = this.state.addresses.find(a => a.id === addrId);
       const color = this.getAddressColor(addrId).hex;
@@ -579,7 +611,7 @@ const app = {
                 const inv = groupedItems[idx];
                 if (!inv) return '';
                 const addr = this.state.addresses.find(a => a.id === inv.addressId);
-                return `${this.formatMonthYear(inv.date)} — ${addr ? `${addr.logradouro},${addr.numero}` : ''}`;
+                return `${this.formatMonthYear(inv.date)} — ${addr ? `${addr.logradouro}, ${addr.numero}` : ''}`;
               },
               label: (ctx) => ` Consumo: ${ctx.parsed.y} kWh`
             }
@@ -588,7 +620,7 @@ const app = {
       }
     });
 
-    // 3. GRÁFICO 2 (LINHAS): Meses curtos MMM/AAAA no eixo X e uma série colorida por endereço + Neoenergia
+    // GRÁFICO 2 (LINHAS): Meses curtos MMM/AAAA no eixo X e uma série colorida por endereço + Neoenergia
     const uniqueMonthKeys = [];
     const monthTimestampMap = {};
     invoices.forEach(inv => {
@@ -740,7 +772,7 @@ const app = {
     await this.saveDocument('users', id, {
       name: document.getElementById('userName').value.trim(),
       email: document.getElementById('userEmail').value.trim(),
-      password: document.getElementById('userPassword').value.trim(),
+      password: String(document.getElementById('userPassword').value || '').trim(),
       role: document.getElementById('userRole').value,
       addressIds: [...new Set(selectedAddressIds)]
     });
@@ -783,4 +815,177 @@ const app = {
 
   // --- CRUD ENDEREÇOS ---
   renderAddressesView() {
-    document.getElementById('addressesTableBody').innerHTML = this.state.addresses.map
+    document.getElementById('addressesTableBody').innerHTML = this.state.addresses.map(a => {
+      const color = this.getAddressColor(a.id);
+      return `
+        <tr class="hover:bg-slate-50">
+          <td class="py-3.5 px-4 font-semibold text-slate-800">
+            <span class="inline-block w-2.5 h-2.5 rounded-full mr-2" style="background-color: ${color.hex};"></span>
+            ${a.logradouro}, ${a.numero}
+          </td>
+          <td class="py-3.5 px-4 text-slate-600">${a.bairro} — ${a.cidade}</td>
+          <td class="py-3.5 px-4 text-slate-600">${a.cep}</td>
+          <td class="py-3.5 px-4 text-right space-x-2">
+            <button onclick="app.editAddress('${a.id}')" class="text-xs font-bold text-[#1E88E5] hover:underline">Editar</button>
+            <button onclick="app.removeAddress('${a.id}')" class="text-xs font-bold text-red-600 hover:underline">Excluir</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  },
+
+  async saveAddress(e) {
+    e.preventDefault();
+    const cep = document.getElementById('addrCep').value.trim();
+    if (!/^\d{5}-\d{3}$/.test(cep)) {
+      alert('Informe um CEP válido no formato 00000-000.');
+      return;
+    }
+
+    const id = document.getElementById('addressId').value || null;
+    await this.saveDocument('addresses', id, {
+      logradouro: document.getElementById('addrLogradouro').value.trim(),
+      numero: document.getElementById('addrNumero').value.trim(),
+      bairro: document.getElementById('addrBairro').value.trim(),
+      cep,
+      cidade: document.getElementById('addrCidade').value.trim()
+    });
+
+    await this.loadAllData();
+    this.resetAddressForm();
+    this.renderAddressesView();
+  },
+
+  editAddress(id) {
+    const a = this.state.addresses.find(addr => addr.id === id);
+    if (!a) return;
+    document.getElementById('addressFormTitle').textContent = 'Editar Endereço';
+    document.getElementById('addressId').value = a.id;
+    document.getElementById('addrLogradouro').value = a.logradouro;
+    document.getElementById('addrNumero').value = a.numero;
+    document.getElementById('addrBairro').value = a.bairro;
+    document.getElementById('addrCep').value = a.cep;
+    document.getElementById('addrCidade').value = a.cidade;
+  },
+
+  async removeAddress(id) {
+    if (!confirm('Deseja excluir este endereço?')) return;
+    await this.deleteDocument('addresses', id);
+    await this.loadAllData();
+    this.renderAddressesView();
+  },
+
+  resetAddressForm() {
+    document.getElementById('addressFormTitle').textContent = 'Cadastrar / Editar Endereço';
+    document.getElementById('addressForm').reset();
+    document.getElementById('addressId').value = '';
+  },
+
+  // --- CRUD FATURAS ---
+  renderInvoicesView() {
+    const sel = document.getElementById('invAddressId');
+    sel.innerHTML = this.state.addresses.map(a =>
+      `<option value="${a.id}">${a.logradouro}, ${a.numero} (${a.bairro} - ${a.cidade})</option>`
+    ).join('');
+
+    document.getElementById('invoicesTableBody').innerHTML = this.state.invoices.map(inv => {
+      const addr = this.state.addresses.find(a => a.id === inv.addressId);
+      const calc = this.calculateInvoice(inv);
+      return `
+        <tr class="hover:bg-slate-50">
+          <td class="py-3.5 px-4 font-semibold">${inv.date}</td>
+          <td class="py-3.5 px-4 text-slate-600">${addr ? `${addr.logradouro}, ${addr.numero}` : 'N/A'}</td>
+          <td class="py-3.5 px-4 font-bold text-[#0A2558]">${calc.consumption} kWh</td>
+          <td class="py-3.5 px-4 text-slate-600">${this.formatCurrency(calc.neoFee)}</td>
+          <td class="py-3.5 px-4 font-extrabold text-[#2E7D32]">${this.formatCurrency(calc.acgoTotal)}</td>
+          <td class="py-3.5 px-4 text-right space-x-2">
+            <button onclick="app.editInvoice('${inv.id}')" class="text-xs font-bold text-[#1E88E5] hover:underline">Editar</button>
+            <button onclick="app.removeInvoice('${inv.id}')" class="text-xs font-bold text-red-600 hover:underline">Excluir</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    this.recalcInvoicePreview();
+  },
+
+  recalcInvoicePreview() {
+    const initial = Number(document.getElementById('invInitialReading').value || 0);
+    const final = Number(document.getElementById('invFinalReading').value || 0);
+    const neoFee = this.parseCurrency(document.getElementById('invNeoFee').value);
+    const fioBDiscount = this.parseCurrency(document.getElementById('invFioBDiscount').value);
+    const neoRate = this.parseCurrency(document.getElementById('invNeoRate').value) || 0.98;
+
+    const calc = this.calculateInvoice({ initialReading: initial, finalReading: final, neoFee, fioBDiscount, neoRate });
+    document.getElementById('prevConsumption').textContent = `${calc.consumption} kWh`;
+    document.getElementById('prevEnergyCost').textContent = this.formatCurrency(calc.energyCost);
+    document.getElementById('prevNeoFee').textContent = `+ ${this.formatCurrency(calc.neoFee)}`;
+    document.getElementById('prevFioBDiscount').textContent = `- ${this.formatCurrency(calc.fioBDiscount)}`;
+    document.getElementById('prevTotalAcgo').textContent = this.formatCurrency(calc.acgoTotal);
+    document.getElementById('prevSavings').textContent = this.formatCurrency(calc.savings);
+  },
+
+  async saveInvoice(e) {
+    e.preventDefault();
+    const date = document.getElementById('invDate').value.trim();
+    if (!this.isValidDate(date)) {
+      alert('Data inválida. Utilize o formato dd/mm/aaaa.');
+      return;
+    }
+
+    const initialReading = Number(document.getElementById('invInitialReading').value);
+    const finalReading = Number(document.getElementById('invFinalReading').value);
+    if (finalReading < initialReading) {
+      alert('A leitura final deve ser maior ou igual à leitura inicial.');
+      return;
+    }
+
+    const id = document.getElementById('invoiceId').value || null;
+    await this.saveDocument('invoices', id, {
+      addressId: document.getElementById('invAddressId').value,
+      date,
+      initialReading,
+      finalReading,
+      neoFee: this.parseCurrency(document.getElementById('invNeoFee').value),
+      fioBDiscount: this.parseCurrency(document.getElementById('invFioBDiscount').value),
+      neoRate: this.parseCurrency(document.getElementById('invNeoRate').value) || 0.98
+    });
+
+    await this.loadAllData();
+    this.resetInvoiceForm();
+    this.renderInvoicesView();
+  },
+
+  editInvoice(id) {
+    const inv = this.state.invoices.find(i => i.id === id);
+    if (!inv) return;
+    document.getElementById('invoiceFormTitle').textContent = 'Editar Fatura';
+    document.getElementById('invoiceId').value = inv.id;
+    document.getElementById('invAddressId').value = inv.addressId;
+    document.getElementById('invDate').value = inv.date;
+    document.getElementById('invInitialReading').value = inv.initialReading;
+    document.getElementById('invFinalReading').value = inv.finalReading;
+    document.getElementById('invNeoFee').value = this.formatCurrency(inv.neoFee);
+    document.getElementById('invFioBDiscount').value = this.formatCurrency(inv.fioBDiscount);
+    document.getElementById('invNeoRate').value = this.formatCurrency(inv.neoRate || 0.98);
+    this.recalcInvoicePreview();
+  },
+
+  async removeInvoice(id) {
+    if (!confirm('Deseja excluir esta fatura?')) return;
+    await this.deleteDocument('invoices', id);
+    await this.loadAllData();
+    this.renderInvoicesView();
+  },
+
+  resetInvoiceForm() {
+    document.getElementById('invoiceFormTitle').textContent = 'Lançar / Editar Leitura & Fatura';
+    document.getElementById('invoiceForm').reset();
+    document.getElementById('invoiceId').value = '';
+    document.getElementById('invNeoFee').value = 'R$ 0,00';
+    document.getElementById('invFioBDiscount').value = 'R$ 0,00';
+    document.getElementById('invNeoRate').value = 'R$ 0,98';
+    this.recalcInvoicePreview();
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => app.init());
