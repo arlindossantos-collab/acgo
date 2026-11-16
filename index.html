@@ -193,22 +193,50 @@
 
       <!-- VIEW 1: VISÃO GERAL / DASHBOARD DO CLIENTE -->
       <section id="view-dashboard" class="space-y-6">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div>
-            <span id="dashRoleBadge" class="inline-block px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-blue-100 text-[#0A2558] mb-1">Administrador</span>
-            <h1 id="dashTitle" class="text-2xl font-extrabold text-slate-900">Painel Consolidado da Usina</h1>
-            <p id="dashSubtitle" class="text-sm text-slate-500 mt-0.5">Acompanhe o consumo medido, faturamento ACGO (R$ 0,75/kWh) e economia líquida frente à Neoenergia.</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-3">
-            <div id="userFilterWrapper" class="flex items-center gap-2">
-              <label for="dashUserSelect" class="text-xs font-bold text-slate-600 uppercase">Cliente:</label>
-              <select id="dashUserSelect" onchange="app.renderDashboard()" class="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none"></select>
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                <span id="dashRoleBadge" class="inline-block px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-blue-100 text-[#0A2558]">Administrador</span>
+                <!-- TAG COLORIDA DO ENDEREÇO EM EXIBIÇÃO -->
+                <span id="dashActiveAddressTag" class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold border">
+                  <span id="dashActiveAddressDot" class="w-2.5 h-2.5 rounded-full"></span>
+                  <span id="dashActiveAddressLabel">Todos os endereços</span>
+                </span>
+              </div>
+              <h1 id="dashTitle" class="text-2xl font-extrabold text-slate-900">Painel Consolidado da Usina</h1>
+              <p id="dashSubtitle" class="text-sm text-slate-500 mt-0.5">Acompanhe o consumo medido, faturamento ACGO (R$ 0,75/kWh) e economia líquida frente à Neoenergia.</p>
             </div>
-            <div class="flex items-center gap-2">
-              <label for="dashAddressSelect" class="text-xs font-bold text-slate-600 uppercase">Endereço:</label>
-              <select id="dashAddressSelect" onchange="app.renderDashboard()" class="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none">
+          </div>
+
+          <!-- BARRA DE FILTROS: CLIENTE, ENDEREÇO E PERÍODO -->
+          <div class="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+            <div id="userFilterWrapper" class="lg:col-span-3">
+              <label for="dashUserSelect" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Cliente</label>
+              <select id="dashUserSelect" onchange="app.renderDashboard()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none"></select>
+            </div>
+
+            <div class="lg:col-span-4">
+              <label for="dashAddressSelect" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Endereço / Unidade Consumidora</label>
+              <select id="dashAddressSelect" onchange="app.renderDashboard()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none">
                 <option value="all">Todos os endereços</option>
               </select>
+            </div>
+
+            <div class="lg:col-span-2">
+              <label for="dashDateStart" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Período De</label>
+              <input type="text" id="dashDateStart" maxlength="10" oninput="app.maskDate(this); app.renderDashboard()" placeholder="dd/mm/aaaa" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-800 bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
+            </div>
+
+            <div class="lg:col-span-2">
+              <label for="dashDateEnd" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Período Até</label>
+              <input type="text" id="dashDateEnd" maxlength="10" oninput="app.maskDate(this); app.renderDashboard()" placeholder="dd/mm/aaaa" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-800 bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
+            </div>
+
+            <div class="lg:col-span-1">
+              <button type="button" onclick="app.clearDashboardPeriod()" title="Limpar filtro de datas" class="w-full py-2 px-3 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+                Limpar
+              </button>
             </div>
           </div>
         </div>
@@ -240,11 +268,17 @@
         <!-- Gráficos -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 class="text-base font-bold text-slate-900 mb-4">Consumo por Período (kWh)</h3>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 class="text-base font-bold text-slate-900">Consumo por Período (kWh)</h3>
+              <span id="chart1AddressBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"></span>
+            </div>
             <div class="h-72"><canvas id="chartConsumption"></canvas></div>
           </div>
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 class="text-base font-bold text-slate-900 mb-4">Valor Faturado ACGO vs. Neoenergia (R$)</h3>
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 class="text-base font-bold text-slate-900">Valor Faturado ACGO vs. Neoenergia (R$)</h3>
+              <span id="chart2AddressBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"></span>
+            </div>
             <div class="h-72"><canvas id="chartFinancial"></canvas></div>
           </div>
         </div>
@@ -253,6 +287,7 @@
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="p-6 border-b border-slate-200 flex items-center justify-between">
             <h3 class="text-base font-bold text-slate-900">Detalhamento das Leituras e Faturas do Período</h3>
+            <span id="dashPeriodSummaryBadge" class="text-xs font-semibold text-slate-500"></span>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse text-sm">
