@@ -1,17 +1,17 @@
 const ACGO_TARIFF = 0.75; // R$ 0,75 por kWh
+const MAX_RECEIPT_BYTES = 720 * 1024; // ~720 KB para caber com segurança no documento gratuito do Firestore (limite 1 MB)
 
 const MONTH_ABBR = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 
-// Paleta de cores distintas para diferenciar cada endereço nos gráficos e tags
 const ADDRESS_PALETTE = [
-  { hex: '#2E7D32', bgSoft: '#ECFDF5', border: '#A7F3D0', text: '#047857' }, // Verde Esmeralda
-  { hex: '#1E88E5', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8' }, // Azul Solar
-  { hex: '#D97706', bgSoft: '#FFFBEB', border: '#FDE68A', text: '#B45309' }, // Dourado Âmbar
-  { hex: '#7C3AED', bgSoft: '#F5F3FF', border: '#DDD6FE', text: '#6D28D9' }, // Violeta
-  { hex: '#0D9488', bgSoft: '#F0FDFA', border: '#99F6E4', text: '#0F766E' }, // Turquesa
-  { hex: '#E11D48', bgSoft: '#FFF1F2', border: '#FECDD3', text: '#BE123C' }, // Carmesim
-  { hex: '#EA580C', bgSoft: '#FFF7ED', border: '#FED7AA', text: '#C2410C' }, // Laranja
-  { hex: '#0284C7', bgSoft: '#F0F9FF', border: '#BAE6FD', text: '#0369A1' }  // Ciano
+  { hex: '#2E7D32', bgSoft: '#ECFDF5', border: '#A7F3D0', text: '#047857' },
+  { hex: '#1E88E5', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8' },
+  { hex: '#D97706', bgSoft: '#FFFBEB', border: '#FDE68A', text: '#B45309' },
+  { hex: '#7C3AED', bgSoft: '#F5F3FF', border: '#DDD6FE', text: '#6D28D9' },
+  { hex: '#0D9488', bgSoft: '#F0FDFA', border: '#99F6E4', text: '#0F766E' },
+  { hex: '#E11D48', bgSoft: '#FFF1F2', border: '#FECDD3', text: '#BE123C' },
+  { hex: '#EA580C', bgSoft: '#FFF7ED', border: '#FED7AA', text: '#C2410C' },
+  { hex: '#0284C7', bgSoft: '#F0F9FF', border: '#BAE6FD', text: '#0369A1' }
 ];
 
 const app = {
@@ -21,6 +21,7 @@ const app = {
     invoices: [],
     activeSessionUserId: null,
     currentView: 'dashboard',
+    pendingReceipt: null, // { name, type, dataUrl }
     charts: { consumption: null, financial: null }
   },
 
@@ -66,7 +67,7 @@ const app = {
     }
   },
 
-  // --- CORES E FORMATAÇÃO DE MÊS ---
+  // --- CORES, DATAS E STATUS DE PAGAMENTO ---
   getAddressColor(addressId) {
     if (!addressId || addressId === 'all') {
       return { hex: '#0A2558', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#0A2558' };
@@ -83,6 +84,46 @@ const app = {
     const year = parts[2];
     const abbr = MONTH_ABBR[monthIdx] || parts[1];
     return `${abbr}/${year}`;
+  },
+
+  getPaymentStatusBadge(inv) {
+    if (inv.paymentStatus === 'pago') {
+      const paidOn = inv.paidDate ? ` em ${inv.paidDate}` : '';
+      return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+        ✓ Pago${paidOn}
+      </span>`;
+    }
+
+    if (!inv.dueDate || !this.isValidDate(inv.dueDate)) {
+      return `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">
+        Pendente
+      </span>`;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [d, m, y] = inv.dueDate.split('/').map(Number);
+    const due = new Date(y, m - 1, d);
+    due.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      const lateDays = Math.abs(diffDays);
+      return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+        ⚠ Atrasado (${lateDays}d)
+      </span>`;
+    }
+
+    if (diffDays === 0) {
+      return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+        Vence hoje
+      </span>`;
+    }
+
+    return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200">
+      Vence em ${diffDays} dia${diffDays > 1 ? 's' : ''}
+    </span>`;
   },
 
   // --- AUTENTICAÇÃO E CONTROLE DE ACESSO ---
@@ -148,8 +189,8 @@ const app = {
       return;
     }
 
-    document.getElementById('loggedUserBadge').textContent =
-      `${user.name} (${user.role === 'administrador' ? 'Admin' : 'Comum'})`;
+    // Exibe apenas o nome do usuário (sem expor se é Admin ou Comum)
+    document.getElementById('loggedUserBadge').textContent = user.name;
 
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');
@@ -245,6 +286,9 @@ const app = {
     await this.saveDocument('invoices', null, {
       addressId: addr1Id,
       date: '15/09/2026',
+      dueDate: '25/09/2026',
+      paymentStatus: 'pago',
+      paidDate: '24/09/2026',
       initialReading: 12400,
       finalReading: 13050,
       neoFee: 38.50,
@@ -254,7 +298,10 @@ const app = {
 
     await this.saveDocument('invoices', null, {
       addressId: addr2Id,
-      date: '15/10/2026',
+      date: '15/11/2026',
+      dueDate: '25/11/2026',
+      paymentStatus: 'pendente',
+      paidDate: '',
       initialReading: 8200,
       finalReading: 8740,
       neoFee: 39.10,
@@ -307,6 +354,92 @@ const app = {
   maskCep(input) {
     let v = input.value.replace(/\D/g, '').slice(0, 8);
     input.value = v.length > 5 ? `${v.slice(0, 5)}-${v.slice(5)}` : v;
+  },
+
+  // --- COMPROVANTE DE PAGAMENTO (FIRESTORE GRATUITO) ---
+  async handleReceiptSelect(event) {
+    const file = event.target.files[0];
+    const infoEl = document.getElementById('invReceiptInfo');
+    if (!file) return;
+
+    if (file.type.startsWith('image/')) {
+      try {
+        const compressedDataUrl = await this.compressImage(file, 1200, 0.72);
+        if (compressedDataUrl.length > MAX_RECEIPT_BYTES * 1.37) {
+          alert('A imagem continua acima de 700 KB mesmo após compactação. Escolha uma foto menor.');
+          event.target.value = '';
+          return;
+        }
+        this.state.pendingReceipt = {
+          name: file.name,
+          type: 'image/jpeg',
+          dataUrl: compressedDataUrl
+        };
+        infoEl.textContent = `Imagem pronta: ${file.name}`;
+      } catch (err) {
+        alert('Não foi possível processar a imagem selecionada.');
+      }
+      return;
+    }
+
+    if (file.size > MAX_RECEIPT_BYTES) {
+      alert('Na versão gratuita do banco, arquivos PDF devem ter no máximo 700 KB.');
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.state.pendingReceipt = {
+        name: file.name,
+        type: file.type || 'application/pdf',
+        dataUrl: reader.result
+      };
+      infoEl.textContent = `Arquivo pronto: ${file.name}`;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  compressImage(file, maxWidth, quality) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, maxWidth / img.width);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  },
+
+  openReceipt(invoiceId) {
+    const inv = this.state.invoices.find(i => i.id === invoiceId);
+    if (!inv || !inv.receiptDataUrl) {
+      alert('Nenhum comprovante anexado a esta fatura.');
+      return;
+    }
+
+    const win = window.open();
+    if (win) {
+      win.document.title = inv.receiptName || 'Comprovante ACGO';
+      win.document.body.style.margin = '0';
+      win.document.body.innerHTML = `<iframe src="${inv.receiptDataUrl}" frameborder="0" style="border:0;width:100vw;height:100vh;" allowfullscreen></iframe>`;
+    } else {
+      const a = document.createElement('a');
+      a.href = inv.receiptDataUrl;
+      a.download = inv.receiptName || 'comprovante-acgo';
+      a.click();
+    }
   },
 
   // --- NAVEGAÇÃO ---
@@ -415,10 +548,8 @@ const app = {
       const targetUser = this.state.users.find(u => u.id === selectedUserId);
       allowedAddressIds = targetUser ? (targetUser.addressIds || []) : [];
       document.getElementById('dashTitle').textContent = `Dashboard — ${targetUser ? targetUser.name : ''}`;
-      document.getElementById('dashRoleBadge').textContent = targetUser?.role === 'administrador' ? 'Administrador' : 'Cliente';
     } else {
       document.getElementById('dashTitle').textContent = 'Painel Consolidado da Usina';
-      document.getElementById('dashRoleBadge').textContent = 'Administrador';
     }
 
     const dashAddressSelect = document.getElementById('dashAddressSelect');
@@ -470,9 +601,14 @@ const app = {
       const addrColor = this.getAddressColor(inv.addressId);
       const addrLabel = addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço removido';
 
+      const receiptBtn = inv.receiptDataUrl
+        ? `<button onclick="app.openReceipt('${inv.id}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0A2558] text-xs font-bold transition">📄 Ver</button>`
+        : `<span class="text-xs text-slate-400">—</span>`;
+
       return `
         <tr class="hover:bg-slate-50">
           <td class="py-3.5 px-4 font-semibold text-slate-800">${inv.date}</td>
+          <td class="py-3.5 px-4 text-slate-600">${inv.dueDate || '—'}</td>
           <td class="py-3.5 px-4">
             <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border"
                   style="background-color: ${addrColor.bgSoft}; border-color: ${addrColor.border}; color: ${addrColor.text};">
@@ -480,13 +616,11 @@ const app = {
               ${addrLabel}
             </span>
           </td>
-          <td class="py-3.5 px-4 text-slate-600">${inv.initialReading} → ${inv.finalReading}</td>
           <td class="py-3.5 px-4 font-bold text-[#0A2558]">${calc.consumption} kWh</td>
-          <td class="py-3.5 px-4 text-slate-700 font-medium">${this.formatCurrency(calc.energyCost)}</td>
-          <td class="py-3.5 px-4 text-slate-600">${this.formatCurrency(inv.neoFee)}</td>
-          <td class="py-3.5 px-4 text-emerald-700 font-medium">- ${this.formatCurrency(inv.fioBDiscount)}</td>
           <td class="py-3.5 px-4 font-extrabold text-[#1E88E5]">${this.formatCurrency(calc.acgoTotal)}</td>
           <td class="py-3.5 px-4 font-bold text-emerald-600">${this.formatCurrency(calc.savings)}</td>
+          <td class="py-3.5 px-4">${this.getPaymentStatusBadge(inv)}</td>
+          <td class="py-3.5 px-4 text-right">${receiptBtn}</td>
         </tr>
       `;
     }).join('');
@@ -501,7 +635,7 @@ const app = {
     document.getElementById('kpiSavingsPercent').textContent = `${savingsPct}% de redução frente à concessionária`;
 
     document.getElementById('dashInvoicesTable').innerHTML = rowsHtml ||
-      `<tr><td colspan="9" class="py-8 text-center text-slate-400">Nenhuma leitura lançada para o endereço ou período selecionado.</td></tr>`;
+      `<tr><td colspan="8" class="py-8 text-center text-slate-400">Nenhuma leitura lançada para o endereço ou período selecionado.</td></tr>`;
 
     this.renderCharts(filteredInvoices);
   },
@@ -533,7 +667,6 @@ const app = {
       return this.state.addresses.findIndex(x => x.id === a) - this.state.addresses.findIndex(x => x.id === b);
     });
 
-    // GRÁFICO 1 (BARRAS): Agrupado por cor/endereço lado a lado, com rótulo curto MMM/AAAA abaixo
     const groupedItems = [];
     presentAddressIds.forEach(addrId => {
       const addrInvoices = invoices
@@ -620,7 +753,6 @@ const app = {
       }
     });
 
-    // GRÁFICO 2 (LINHAS): Meses curtos MMM/AAAA no eixo X e uma série colorida por endereço + Neoenergia
     const uniqueMonthKeys = [];
     const monthTimestampMap = {};
     invoices.forEach(inv => {
@@ -882,23 +1014,52 @@ const app = {
   },
 
   // --- CRUD FATURAS ---
+  togglePaidDateField() {
+    const status = document.getElementById('invPaymentStatus').value;
+    const wrapper = document.getElementById('paidDateWrapper');
+    if (status === 'pago') {
+      wrapper.classList.remove('hidden');
+      const paidInput = document.getElementById('invPaidDate');
+      if (!paidInput.value) {
+        const now = new Date();
+        const dd = String(now.getDate()).padStart(2, '0');
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const yyyy = now.getFullYear();
+        paidInput.value = `${dd}/${mm}/${yyyy}`;
+      }
+    } else {
+      wrapper.classList.add('hidden');
+    }
+  },
+
   renderInvoicesView() {
     const sel = document.getElementById('invAddressId');
     sel.innerHTML = this.state.addresses.map(a =>
       `<option value="${a.id}">${a.logradouro}, ${a.numero} (${a.bairro} - ${a.cidade})</option>`
     ).join('');
 
-    document.getElementById('invoicesTableBody').innerHTML = this.state.invoices.map(inv => {
+    const sortedInvoices = [...this.state.invoices].sort(
+      (a, b) => this.dateToTimestamp(b.date) - this.dateToTimestamp(a.date)
+    );
+
+    document.getElementById('invoicesTableBody').innerHTML = sortedInvoices.map(inv => {
       const addr = this.state.addresses.find(a => a.id === inv.addressId);
       const calc = this.calculateInvoice(inv);
+      const receiptCell = inv.receiptDataUrl
+        ? `<button onclick="app.openReceipt('${inv.id}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0A2558] text-xs font-bold transition">📄 Ver</button>`
+        : `<span class="text-xs text-slate-400">—</span>`;
+
       return `
         <tr class="hover:bg-slate-50">
-          <td class="py-3.5 px-4 font-semibold">${inv.date}</td>
-          <td class="py-3.5 px-4 text-slate-600">${addr ? `${addr.logradouro}, ${addr.numero}` : 'N/A'}</td>
-          <td class="py-3.5 px-4 font-bold text-[#0A2558]">${calc.consumption} kWh</td>
-          <td class="py-3.5 px-4 text-slate-600">${this.formatCurrency(calc.neoFee)}</td>
-          <td class="py-3.5 px-4 font-extrabold text-[#2E7D32]">${this.formatCurrency(calc.acgoTotal)}</td>
-          <td class="py-3.5 px-4 text-right space-x-2">
+          <td class="py-3.5 px-3">
+            <span class="block font-semibold text-slate-800">${inv.date}</span>
+            <span class="block text-[11px] text-slate-500">Venc: ${inv.dueDate || '—'}</span>
+          </td>
+          <td class="py-3.5 px-3 text-slate-600 text-xs">${addr ? `${addr.logradouro}, ${addr.numero}` : 'N/A'}</td>
+          <td class="py-3.5 px-3 font-extrabold text-[#2E7D32]">${this.formatCurrency(calc.acgoTotal)}</td>
+          <td class="py-3.5 px-3">${this.getPaymentStatusBadge(inv)}</td>
+          <td class="py-3.5 px-3">${receiptCell}</td>
+          <td class="py-3.5 px-3 text-right space-x-2">
             <button onclick="app.editInvoice('${inv.id}')" class="text-xs font-bold text-[#1E88E5] hover:underline">Editar</button>
             <button onclick="app.removeInvoice('${inv.id}')" class="text-xs font-bold text-red-600 hover:underline">Excluir</button>
           </td>
@@ -927,8 +1088,16 @@ const app = {
   async saveInvoice(e) {
     e.preventDefault();
     const date = document.getElementById('invDate').value.trim();
-    if (!this.isValidDate(date)) {
-      alert('Data inválida. Utilize o formato dd/mm/aaaa.');
+    const dueDate = document.getElementById('invDueDate').value.trim();
+    if (!this.isValidDate(date) || !this.isValidDate(dueDate)) {
+      alert('Data de leitura ou vencimento inválida. Utilize o formato dd/mm/aaaa.');
+      return;
+    }
+
+    const paymentStatus = document.getElementById('invPaymentStatus').value;
+    const paidDate = document.getElementById('invPaidDate').value.trim();
+    if (paymentStatus === 'pago' && !this.isValidDate(paidDate)) {
+      alert('Informe uma data de pagamento válida no formato dd/mm/aaaa.');
       return;
     }
 
@@ -940,33 +1109,63 @@ const app = {
     }
 
     const id = document.getElementById('invoiceId').value || null;
-    await this.saveDocument('invoices', id, {
+    const existingInv = id ? this.state.invoices.find(i => i.id === id) : null;
+
+    const payload = {
       addressId: document.getElementById('invAddressId').value,
       date,
+      dueDate,
+      paymentStatus,
+      paidDate: paymentStatus === 'pago' ? paidDate : '',
       initialReading,
       finalReading,
       neoFee: this.parseCurrency(document.getElementById('invNeoFee').value),
       fioBDiscount: this.parseCurrency(document.getElementById('invFioBDiscount').value),
-      neoRate: this.parseCurrency(document.getElementById('invNeoRate').value) || 0.98
-    });
+      neoRate: this.parseCurrency(document.getElementById('invNeoRate').value) || 0.98,
+      receiptName: this.state.pendingReceipt ? this.state.pendingReceipt.name : (existingInv?.receiptName || ''),
+      receiptType: this.state.pendingReceipt ? this.state.pendingReceipt.type : (existingInv?.receiptType || ''),
+      receiptDataUrl: this.state.pendingReceipt ? this.state.pendingReceipt.dataUrl : (existingInv?.receiptDataUrl || '')
+    };
 
-    await this.loadAllData();
-    this.resetInvoiceForm();
-    this.renderInvoicesView();
+    const btn = document.getElementById('invoiceSubmitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    try {
+      await this.saveDocument('invoices', id, payload);
+      await this.loadAllData();
+      this.resetInvoiceForm();
+      this.renderInvoicesView();
+    } catch (err) {
+      alert(`Erro ao salvar fatura: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Salvar Fatura';
+    }
   },
 
   editInvoice(id) {
     const inv = this.state.invoices.find(i => i.id === id);
     if (!inv) return;
+    this.state.pendingReceipt = null;
     document.getElementById('invoiceFormTitle').textContent = 'Editar Fatura';
     document.getElementById('invoiceId').value = inv.id;
     document.getElementById('invAddressId').value = inv.addressId;
     document.getElementById('invDate').value = inv.date;
+    document.getElementById('invDueDate').value = inv.dueDate || '';
     document.getElementById('invInitialReading').value = inv.initialReading;
     document.getElementById('invFinalReading').value = inv.finalReading;
     document.getElementById('invNeoFee').value = this.formatCurrency(inv.neoFee);
     document.getElementById('invFioBDiscount').value = this.formatCurrency(inv.fioBDiscount);
     document.getElementById('invNeoRate').value = this.formatCurrency(inv.neoRate || 0.98);
+    document.getElementById('invPaymentStatus').value = inv.paymentStatus || 'pendente';
+    document.getElementById('invPaidDate').value = inv.paidDate || '';
+    this.togglePaidDateField();
+
+    document.getElementById('invReceiptInfo').textContent = inv.receiptName
+      ? `Comprovante salvo: ${inv.receiptName} (selecione outro para substituir)`
+      : 'Nenhum arquivo anexado (máx. 700 KB).';
+
     this.recalcInvoicePreview();
   },
 
@@ -978,12 +1177,16 @@ const app = {
   },
 
   resetInvoiceForm() {
+    this.state.pendingReceipt = null;
     document.getElementById('invoiceFormTitle').textContent = 'Lançar / Editar Leitura & Fatura';
     document.getElementById('invoiceForm').reset();
     document.getElementById('invoiceId').value = '';
     document.getElementById('invNeoFee').value = 'R$ 0,00';
     document.getElementById('invFioBDiscount').value = 'R$ 0,00';
     document.getElementById('invNeoRate').value = 'R$ 0,98';
+    document.getElementById('invPaymentStatus').value = 'pendente';
+    document.getElementById('invReceiptInfo').textContent = 'Nenhum arquivo anexado (máx. 700 KB).';
+    this.togglePaidDateField();
     this.recalcInvoicePreview();
   }
 };

@@ -1,5 +1,5 @@
 const ACGO_TARIFF = 0.75; // R$ 0,75 por kWh
-const MAX_RECEIPT_BYTES = 720 * 1024; // ~720 KB para caber com segurança no documento gratuito do Firestore (limite 1 MB)
+const MAX_RECEIPT_BYTES = 720 * 1024;
 
 const MONTH_ABBR = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 
@@ -21,7 +21,7 @@ const app = {
     invoices: [],
     activeSessionUserId: null,
     currentView: 'dashboard',
-    pendingReceipt: null, // { name, type, dataUrl }
+    pendingReceipt: null,
     charts: { consumption: null, financial: null }
   },
 
@@ -49,22 +49,62 @@ const app = {
     if (isFirebaseConnected) {
       if (badge) {
         badge.className = 'hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800';
-        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Firebase Conectado';
+        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Banco conectado';
       }
       if (loginBadge) {
         loginBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800';
-        loginBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Banco Firebase Conectado';
+        loginBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Banco conectado';
       }
     } else {
       if (badge) {
         badge.className = 'hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800';
-        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500"></span> Modo Local (Configure Firebase)';
+        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500"></span> Modo Local';
       }
       if (loginBadge) {
         loginBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800';
         loginBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500"></span> Modo Local Ativo';
       }
     }
+  },
+
+  // --- FORMATAÇÃO DE ENDEREÇO COM APARTAMENTO ---
+  formatAddressShort(addr) {
+    if (!addr) return 'Endereço removido';
+    const apto = (addr.apartamento || '').trim();
+    return apto
+      ? `${addr.logradouro}, ${addr.numero} - ${apto}`
+      : `${addr.logradouro}, ${addr.numero}`;
+  },
+
+  formatAddressFull(addr) {
+    if (!addr) return 'Endereço removido';
+    return `${this.formatAddressShort(addr)} — ${addr.bairro} (${addr.cidade})`;
+  },
+
+  // --- DIÁLOGO DE CONFIRMAÇÃO DE EXCLUSÃO (SIM / NÃO) ---
+  confirmDeletion(itemLabel) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('confirmDeleteModal');
+      const msgEl = document.getElementById('confirmDeleteMessage');
+      const yesBtn = document.getElementById('confirmDeleteYesBtn');
+      const noBtn = document.getElementById('confirmDeleteNoBtn');
+
+      msgEl.innerHTML = `Você realmente deseja excluir este <strong>${itemLabel}</strong>?`;
+      modal.classList.remove('hidden');
+
+      const cleanup = (result) => {
+        modal.classList.add('hidden');
+        yesBtn.removeEventListener('click', onYes);
+        noBtn.removeEventListener('click', onNo);
+        resolve(result);
+      };
+
+      const onYes = () => cleanup(true);
+      const onNo = () => cleanup(false);
+
+      yesBtn.addEventListener('click', onYes);
+      noBtn.addEventListener('click', onNo);
+    });
   },
 
   // --- CORES, DATAS E STATUS DE PAGAMENTO ---
@@ -150,7 +190,7 @@ const app = {
       await this.seedInitialDataIfEmpty();
     } catch (err) {
       console.error('Erro ao consultar usuários:', err);
-      errorEl.textContent = `Erro ao conectar ao banco: ${err.message || 'verifique as permissões do Firestore.'}`;
+      errorEl.textContent = `Erro ao conectar ao banco: ${err.message || 'verifique as permissões.'}`;
       errorEl.classList.remove('hidden');
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -189,7 +229,6 @@ const app = {
       return;
     }
 
-    // Exibe apenas o nome do usuário (sem expor se é Admin ou Comum)
     document.getElementById('loggedUserBadge').textContent = user.name;
 
     document.getElementById('loginScreen').classList.add('hidden');
@@ -204,7 +243,7 @@ const app = {
     this.showLoginScreen();
   },
 
-  // --- PERSISTÊNCIA (FIREBASE + FALLBACK LOCALSTORAGE) ---
+  // --- PERSISTÊNCIA ---
   async loadCollection(name) {
     if (isFirebaseConnected && db) {
       const snap = await db.collection(name).get();
@@ -254,6 +293,7 @@ const app = {
     const addr1Id = await this.saveDocument('addresses', null, {
       logradouro: 'Av. Boa Viagem',
       numero: '3420',
+      apartamento: 'Apto 801',
       bairro: 'Boa Viagem',
       cep: '51021-000',
       cidade: 'Recife'
@@ -262,6 +302,7 @@ const app = {
     const addr2Id = await this.saveDocument('addresses', null, {
       logradouro: 'Rua das Graças',
       numero: '185',
+      apartamento: '',
       bairro: 'Graças',
       cep: '52011-200',
       cidade: 'Recife'
@@ -271,6 +312,7 @@ const app = {
       name: 'Administrador Usina ACGO',
       email: 'admin@acgosolar.com.br',
       password: 'admin123',
+      phones: ['(81) 99999-0000'],
       role: 'administrador',
       addressIds: []
     });
@@ -279,6 +321,7 @@ const app = {
       name: 'Carlos Eduardo Mendes',
       email: 'carlos.mendes@email.com',
       password: '123456',
+      phones: ['(81) 98888-1122', '(81) 3322-4455'],
       role: 'comum',
       addressIds: [addr1Id, addr2Id]
     });
@@ -339,6 +382,21 @@ const app = {
     else input.value = v;
   },
 
+  maskPhone(input) {
+    let v = input.value.replace(/\D/g, '').slice(0, 11);
+    if (v.length > 10) {
+      input.value = `(${v.slice(0, 2)}) ${v.slice(2, 7)}-${v.slice(7)}`;
+    } else if (v.length > 6) {
+      input.value = `(${v.slice(0, 2)}) ${v.slice(2, 6)}-${v.slice(6)}`;
+    } else if (v.length > 2) {
+      input.value = `(${v.slice(0, 2)}) ${v.slice(2)}`;
+    } else if (v.length > 0) {
+      input.value = `(${v}`;
+    } else {
+      input.value = '';
+    }
+  },
+
   isValidDate(str) {
     const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
     const match = str.match(regex);
@@ -356,7 +414,40 @@ const app = {
     input.value = v.length > 5 ? `${v.slice(0, 5)}-${v.slice(5)}` : v;
   },
 
-  // --- COMPROVANTE DE PAGAMENTO (FIRESTORE GRATUITO) ---
+  // --- CONTATOS TELEFÔNICOS DINÂMICOS NO FORMULÁRIO DE USUÁRIO ---
+  addPhoneField(value = '') {
+    const container = document.getElementById('userPhonesContainer');
+    if (!container) return;
+
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2';
+    row.innerHTML = `
+      <input type="text" name="userPhoneInput" value="${value}" maxlength="15" oninput="app.maskPhone(this)" placeholder="(81) 99999-9999" class="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
+      <button type="button" onclick="app.removePhoneField(this)" title="Remover telefone" class="px-2.5 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition">
+        ✕
+      </button>
+    `;
+    container.appendChild(row);
+  },
+
+  removePhoneField(btn) {
+    const container = document.getElementById('userPhonesContainer');
+    const row = btn.closest('div');
+    if (row) row.remove();
+    if (container && container.children.length === 0) {
+      this.addPhoneField('');
+    }
+  },
+
+  setUserPhoneFields(phones = []) {
+    const container = document.getElementById('userPhonesContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    const list = Array.isArray(phones) && phones.length ? phones : [''];
+    list.forEach(p => this.addPhoneField(p));
+  },
+
+  // --- COMPROVANTE DE PAGAMENTO ---
   async handleReceiptSelect(event) {
     const file = event.target.files[0];
     const infoEl = document.getElementById('invReceiptInfo');
@@ -513,7 +604,7 @@ const app = {
     const color = this.getAddressColor(selectedAddrId);
     const addrObj = availableAddrs.find(a => a.id === selectedAddrId);
     const labelText = addrObj
-      ? `${addrObj.logradouro}, ${addrObj.numero} — ${addrObj.bairro}`
+      ? `${this.formatAddressShort(addrObj)} — ${addrObj.bairro}`
       : `Todos os endereços (${availableAddrs.length})`;
 
     const mainTag = document.getElementById('dashActiveAddressTag');
@@ -557,7 +648,7 @@ const app = {
     const availableAddrs = this.state.addresses.filter(a => allowedAddressIds.includes(a.id));
 
     dashAddressSelect.innerHTML = `<option value="all">Todos os endereços (${availableAddrs.length})</option>` +
-      availableAddrs.map(a => `<option value="${a.id}">${a.logradouro}, ${a.numero} - ${a.bairro}</option>`).join('');
+      availableAddrs.map(a => `<option value="${a.id}">${this.formatAddressShort(a)} - ${a.bairro}</option>`).join('');
 
     if (availableAddrs.some(a => a.id === currentAddrFilter)) {
       dashAddressSelect.value = currentAddrFilter;
@@ -599,7 +690,7 @@ const app = {
       totalNeo += calc.neoTotal;
       const addr = this.state.addresses.find(a => a.id === inv.addressId);
       const addrColor = this.getAddressColor(inv.addressId);
-      const addrLabel = addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço removido';
+      const addrLabel = this.formatAddressShort(addr);
 
       const receiptBtn = inv.receiptDataUrl
         ? `<button onclick="app.openReceipt('${inv.id}')" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0A2558] text-xs font-bold transition">📄 Ver</button>`
@@ -682,7 +773,7 @@ const app = {
     const consumptionLegendDatasets = presentAddressIds.map((addrId, index) => {
       const addr = this.state.addresses.find(a => a.id === addrId);
       const color = this.getAddressColor(addrId).hex;
-      const addrName = addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço';
+      const addrName = this.formatAddressShort(addr);
 
       return {
         label: addrName,
@@ -728,7 +819,7 @@ const app = {
                 const addr = this.state.addresses.find(a => a.id === addrId);
                 const color = this.getAddressColor(addrId).hex;
                 return {
-                  text: addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço',
+                  text: this.formatAddressShort(addr),
                   fillStyle: color,
                   strokeStyle: color,
                   lineWidth: 0,
@@ -744,7 +835,7 @@ const app = {
                 const inv = groupedItems[idx];
                 if (!inv) return '';
                 const addr = this.state.addresses.find(a => a.id === inv.addressId);
-                return `${this.formatMonthYear(inv.date)} — ${addr ? `${addr.logradouro}, ${addr.numero}` : ''}`;
+                return `${this.formatMonthYear(inv.date)} — ${this.formatAddressShort(addr)}`;
               },
               label: (ctx) => ` Consumo: ${ctx.parsed.y} kWh`
             }
@@ -767,7 +858,7 @@ const app = {
     const financialDatasets = presentAddressIds.map(addrId => {
       const addr = this.state.addresses.find(a => a.id === addrId);
       const color = this.getAddressColor(addrId).hex;
-      const addrName = addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço';
+      const addrName = this.formatAddressShort(addr);
 
       const seriesData = uniqueMonthKeys.map(mKey => {
         const match = invoices.find(i => i.addressId === addrId && this.formatMonthYear(i.date) === mKey);
@@ -839,12 +930,17 @@ const app = {
 
   // --- CRUD USUÁRIOS ---
   renderUsersView() {
+    const container = document.getElementById('userPhonesContainer');
+    if (container && container.children.length === 0) {
+      this.setUserPhoneFields([]);
+    }
+
     const checklist = document.getElementById('userAddressesChecklist');
     checklist.innerHTML = this.state.addresses.length
       ? this.state.addresses.map(a => `
           <label class="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" name="userAddrCheck" value="${a.id}" class="rounded text-[#0A2558]" />
-            <span>${a.logradouro}, ${a.numero} — ${a.bairro} (${a.cidade})</span>
+            <span>${this.formatAddressFull(a)}</span>
           </label>
         `).join('')
       : '<p class="text-xs text-slate-400">Nenhum endereço cadastrado ainda.</p>';
@@ -854,14 +950,19 @@ const app = {
       const addrs = (u.addressIds || [])
         .map(id => this.state.addresses.find(a => a.id === id))
         .filter(Boolean)
-        .map(a => `${a.logradouro}, ${a.numero}`)
+        .map(a => this.formatAddressShort(a))
         .join(' • ');
+
+      const phonesList = Array.isArray(u.phones) && u.phones.length
+        ? u.phones.join(' • ')
+        : 'Sem telefone';
 
       return `
         <tr class="hover:bg-slate-50">
           <td class="py-3.5 px-4">
             <button onclick="app.openUserDashboard('${u.id}')" class="font-bold text-[#0A2558] hover:underline text-left">${u.name}</button>
             <span class="block text-xs text-slate-500">${u.email}</span>
+            <span class="block text-[11px] font-medium text-emerald-700 mt-0.5">📞 ${phonesList}</span>
             <span class="block text-[11px] font-mono text-slate-400 mt-0.5">Senha: ${u.password || '—'}</span>
           </td>
           <td class="py-3.5 px-4">
@@ -884,8 +985,13 @@ const app = {
     const id = document.getElementById('userId').value || null;
     const selectedAddressIds = Array.from(document.querySelectorAll('input[name="userAddrCheck"]:checked')).map(cb => cb.value);
 
+    const phones = Array.from(document.querySelectorAll('input[name="userPhoneInput"]'))
+      .map(inp => inp.value.trim())
+      .filter(Boolean);
+
     const inlineLog = document.getElementById('inlineAddrLogradouro').value.trim();
     const inlineNum = document.getElementById('inlineAddrNumero').value.trim();
+    const inlineApto = document.getElementById('inlineAddrApartamento').value.trim();
     const inlineBairro = document.getElementById('inlineAddrBairro').value.trim();
     const inlineCep = document.getElementById('inlineAddrCep').value.trim();
     const inlineCidade = document.getElementById('inlineAddrCidade').value.trim();
@@ -894,6 +1000,7 @@ const app = {
       const newAddrId = await this.saveDocument('addresses', null, {
         logradouro: inlineLog,
         numero: inlineNum,
+        apartamento: inlineApto,
         bairro: inlineBairro,
         cep: inlineCep,
         cidade: inlineCidade
@@ -905,6 +1012,7 @@ const app = {
       name: document.getElementById('userName').value.trim(),
       email: document.getElementById('userEmail').value.trim(),
       password: String(document.getElementById('userPassword').value || '').trim(),
+      phones,
       role: document.getElementById('userRole').value,
       addressIds: [...new Set(selectedAddressIds)]
     });
@@ -923,6 +1031,7 @@ const app = {
     document.getElementById('userEmail').value = u.email;
     document.getElementById('userPassword').value = u.password || '';
     document.getElementById('userRole').value = u.role;
+    this.setUserPhoneFields(u.phones || []);
     document.querySelectorAll('input[name="userAddrCheck"]').forEach(cb => {
       cb.checked = (u.addressIds || []).includes(cb.value);
     });
@@ -933,7 +1042,11 @@ const app = {
       alert('Você não pode excluir o usuário que está logado no momento.');
       return;
     }
-    if (!confirm('Deseja remover este usuário?')) return;
+    const targetUser = this.state.users.find(u => u.id === id);
+    const label = targetUser ? `usuário (${targetUser.name})` : 'usuário';
+    const confirmed = await this.confirmDeletion(label);
+    if (!confirmed) return;
+
     await this.deleteDocument('users', id);
     await this.loadAllData();
     this.renderUsersView();
@@ -943,6 +1056,7 @@ const app = {
     document.getElementById('userFormTitle').textContent = 'Cadastrar Novo Usuário';
     document.getElementById('userForm').reset();
     document.getElementById('userId').value = '';
+    this.setUserPhoneFields([]);
   },
 
   // --- CRUD ENDEREÇOS ---
@@ -953,7 +1067,7 @@ const app = {
         <tr class="hover:bg-slate-50">
           <td class="py-3.5 px-4 font-semibold text-slate-800">
             <span class="inline-block w-2.5 h-2.5 rounded-full mr-2" style="background-color: ${color.hex};"></span>
-            ${a.logradouro}, ${a.numero}
+            ${this.formatAddressShort(a)}
           </td>
           <td class="py-3.5 px-4 text-slate-600">${a.bairro} — ${a.cidade}</td>
           <td class="py-3.5 px-4 text-slate-600">${a.cep}</td>
@@ -978,6 +1092,7 @@ const app = {
     await this.saveDocument('addresses', id, {
       logradouro: document.getElementById('addrLogradouro').value.trim(),
       numero: document.getElementById('addrNumero').value.trim(),
+      apartamento: document.getElementById('addrApartamento').value.trim(),
       bairro: document.getElementById('addrBairro').value.trim(),
       cep,
       cidade: document.getElementById('addrCidade').value.trim()
@@ -995,13 +1110,18 @@ const app = {
     document.getElementById('addressId').value = a.id;
     document.getElementById('addrLogradouro').value = a.logradouro;
     document.getElementById('addrNumero').value = a.numero;
+    document.getElementById('addrApartamento').value = a.apartamento || '';
     document.getElementById('addrBairro').value = a.bairro;
     document.getElementById('addrCep').value = a.cep;
     document.getElementById('addrCidade').value = a.cidade;
   },
 
   async removeAddress(id) {
-    if (!confirm('Deseja excluir este endereço?')) return;
+    const targetAddr = this.state.addresses.find(a => a.id === id);
+    const label = targetAddr ? `endereço (${this.formatAddressShort(targetAddr)})` : 'endereço';
+    const confirmed = await this.confirmDeletion(label);
+    if (!confirmed) return;
+
     await this.deleteDocument('addresses', id);
     await this.loadAllData();
     this.renderAddressesView();
@@ -1035,7 +1155,7 @@ const app = {
   renderInvoicesView() {
     const sel = document.getElementById('invAddressId');
     sel.innerHTML = this.state.addresses.map(a =>
-      `<option value="${a.id}">${a.logradouro}, ${a.numero} (${a.bairro} - ${a.cidade})</option>`
+      `<option value="${a.id}">${this.formatAddressFull(a)}</option>`
     ).join('');
 
     const sortedInvoices = [...this.state.invoices].sort(
@@ -1055,7 +1175,7 @@ const app = {
             <span class="block font-semibold text-slate-800">${inv.date}</span>
             <span class="block text-[11px] text-slate-500">Venc: ${inv.dueDate || '—'}</span>
           </td>
-          <td class="py-3.5 px-3 text-slate-600 text-xs">${addr ? `${addr.logradouro}, ${addr.numero}` : 'N/A'}</td>
+          <td class="py-3.5 px-3 text-slate-600 text-xs">${this.formatAddressShort(addr)}</td>
           <td class="py-3.5 px-3 font-extrabold text-[#2E7D32]">${this.formatCurrency(calc.acgoTotal)}</td>
           <td class="py-3.5 px-3">${this.getPaymentStatusBadge(inv)}</td>
           <td class="py-3.5 px-3">${receiptCell}</td>
@@ -1170,7 +1290,14 @@ const app = {
   },
 
   async removeInvoice(id) {
-    if (!confirm('Deseja excluir esta fatura?')) return;
+    const targetInv = this.state.invoices.find(i => i.id === id);
+    const addr = targetInv ? this.state.addresses.find(a => a.id === targetInv.addressId) : null;
+    const invInfo = targetInv
+      ? `fatura (${targetInv.date}${addr ? ` — ${this.formatAddressShort(addr)}` : ''})`
+      : 'fatura';
+    const confirmed = await this.confirmDeletion(invInfo);
+    if (!confirmed) return;
+
     await this.deleteDocument('invoices', id);
     await this.loadAllData();
     this.renderInvoicesView();

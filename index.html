@@ -13,6 +13,30 @@
 </head>
 <body class="bg-slate-50 text-slate-800 antialiased">
 
+  <!-- MODAL DE CONFIRMAÇÃO DE EXCLUSÃO (SIM / NÃO) -->
+  <div id="confirmDeleteModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs px-4">
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-5">
+      <div class="flex items-start gap-3.5">
+        <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 font-extrabold text-lg">
+          !
+        </div>
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900">Confirmar Exclusão</h3>
+          <p id="confirmDeleteMessage" class="text-sm text-slate-600 mt-1 leading-relaxed"></p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+        <button type="button" id="confirmDeleteNoBtn" class="px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wide transition">
+          NÃO
+        </button>
+        <button type="button" id="confirmDeleteYesBtn" class="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wide transition shadow-xs">
+          SIM
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- TELA DE LOGIN OBRIGATÓRIA -->
   <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0A2558] via-[#12397A] to-[#1B5E20] px-4 py-10">
     <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 space-y-6">
@@ -165,7 +189,7 @@
           <button data-nav="invoices" onclick="app.navigate('invoices')" class="nav-btn admin-only px-4 py-2 rounded-lg text-sm font-semibold transition">Leituras & Faturas</button>
         </nav>
 
-        <!-- Usuário Logado (Sem exibir perfil) + Status Firebase + Sair -->
+        <!-- Usuário Logado + Status do Banco + Sair -->
         <div class="flex items-center gap-3">
           <span id="dbStatusBadge" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
             <span class="w-2 h-2 rounded-full bg-amber-500"></span>
@@ -198,7 +222,6 @@
           <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
               <div class="flex flex-wrap items-center gap-2 mb-1.5">
-                <!-- TAG COLORIDA DO ENDEREÇO EM EXIBIÇÃO -->
                 <span id="dashActiveAddressTag" class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold border">
                   <span id="dashActiveAddressDot" class="w-2.5 h-2.5 rounded-full"></span>
                   <span id="dashActiveAddressLabel">Todos os endereços</span>
@@ -333,6 +356,18 @@
                   <input type="text" id="userPassword" required placeholder="Senha fornecida ao usuário" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
                 </div>
               </div>
+
+              <!-- CONTATOS TELEFÔNICOS (MÚLTIPLOS) -->
+              <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+                <div class="flex items-center justify-between">
+                  <label class="block text-xs font-bold text-slate-700 uppercase">Contatos Telefônicos</label>
+                  <button type="button" onclick="app.addPhoneField()" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#0A2558] hover:bg-[#1E88E5] text-white text-[11px] font-bold transition">
+                    + Adicionar telefone
+                  </button>
+                </div>
+                <div id="userPhonesContainer" class="space-y-2"></div>
+              </div>
+
               <div>
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Perfil de Acesso *</label>
                 <select id="userRole" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none">
@@ -350,12 +385,15 @@
               <!-- Cadastrar Novo Endereço Direto no Cadastro do Usuário -->
               <div class="p-4 rounded-xl border border-dashed border-[#1E88E5] bg-blue-50/40 space-y-3">
                 <p class="text-xs font-extrabold text-[#0A2558] uppercase">+ Adicionar Novo Endereço para este Usuário (Opcional)</p>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
                   <div class="sm:col-span-2">
                     <input type="text" id="inlineAddrLogradouro" placeholder="Logradouro (Rua, Av...)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white" />
                   </div>
                   <div>
                     <input type="text" id="inlineAddrNumero" placeholder="Número" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white" />
+                  </div>
+                  <div>
+                    <input type="text" id="inlineAddrApartamento" placeholder="Apartamento" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white" />
                   </div>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -387,7 +425,7 @@
               <table class="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
-                    <th class="py-3.5 px-4 font-bold">Usuário / Senha</th>
+                    <th class="py-3.5 px-4 font-bold">Usuário / Contatos</th>
                     <th class="py-3.5 px-4 font-bold">Perfil</th>
                     <th class="py-3.5 px-4 font-bold">Endereços Vinculados</th>
                     <th class="py-3.5 px-4 font-bold text-right">Ações</th>
@@ -414,10 +452,14 @@
                 <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Logradouro *</label>
                 <input type="text" id="addrLogradouro" required placeholder="Rua / Avenida / Travessa" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
               </div>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-3 gap-3">
                 <div>
                   <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Número *</label>
                   <input type="text" id="addrNumero" required placeholder="Ex: 120A" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Apartamento</label>
+                  <input type="text" id="addrApartamento" placeholder="Ex: Apto 302" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
                 </div>
                 <div>
                   <label class="block text-xs font-bold text-slate-700 uppercase mb-1">CEP *</label>
@@ -448,7 +490,7 @@
               <table class="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
-                    <th class="py-3.5 px-4 font-bold">Logradouro / Nº</th>
+                    <th class="py-3.5 px-4 font-bold">Logradouro / Nº / Apto</th>
                     <th class="py-3.5 px-4 font-bold">Bairro / Cidade</th>
                     <th class="py-3.5 px-4 font-bold">CEP</th>
                     <th class="py-3.5 px-4 font-bold text-right">Ações</th>
@@ -526,7 +568,6 @@
                   </div>
                 </div>
 
-                <!-- ANEXO DE COMPROVANTE GRATUITO (PDF OU IMAGEM ATÉ 700KB) -->
                 <div>
                   <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Comprovante de Pagamento (PDF ou Imagem)</label>
                   <input type="file" id="invReceiptFile" accept=".pdf,image/png,image/jpeg,image/webp" onchange="app.handleReceiptSelect(event)" class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#0A2558] file:text-white hover:file:bg-[#1E88E5] cursor-pointer" />

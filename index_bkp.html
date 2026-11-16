@@ -165,13 +165,13 @@
           <button data-nav="invoices" onclick="app.navigate('invoices')" class="nav-btn admin-only px-4 py-2 rounded-lg text-sm font-semibold transition">Leituras & Faturas</button>
         </nav>
 
-        <!-- Usuário Logado + Status Firebase + Sair -->
+        <!-- Usuário Logado (Sem exibir perfil) + Status Firebase + Sair -->
         <div class="flex items-center gap-3">
           <span id="dbStatusBadge" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
             <span class="w-2 h-2 rounded-full bg-amber-500"></span>
             Verificando Banco...
           </span>
-          <div class="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+          <div class="flex items-center gap-2 bg-slate-100 px-3.5 py-1.5 rounded-xl border border-slate-200">
             <span id="loggedUserBadge" class="text-xs font-bold text-[#0A2558]"></span>
           </div>
           <button onclick="app.logout()" class="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition">
@@ -198,7 +198,6 @@
           <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
               <div class="flex flex-wrap items-center gap-2 mb-1.5">
-                <span id="dashRoleBadge" class="inline-block px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-blue-100 text-[#0A2558]">Administrador</span>
                 <!-- TAG COLORIDA DO ENDEREÇO EM EXIBIÇÃO -->
                 <span id="dashActiveAddressTag" class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold border">
                   <span id="dashActiveAddressDot" class="w-2.5 h-2.5 rounded-full"></span>
@@ -294,15 +293,14 @@
             <table class="w-full text-left border-collapse text-sm">
               <thead>
                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
-                  <th class="py-3.5 px-4 font-bold">Período / Data</th>
+                  <th class="py-3.5 px-4 font-bold">Leitura</th>
+                  <th class="py-3.5 px-4 font-bold">Vencimento</th>
                   <th class="py-3.5 px-4 font-bold">Endereço</th>
-                  <th class="py-3.5 px-4 font-bold">Leitura (Ini → Fim)</th>
                   <th class="py-3.5 px-4 font-bold">Consumo</th>
-                  <th class="py-3.5 px-4 font-bold">Energia ACGO</th>
-                  <th class="py-3.5 px-4 font-bold">Taxa Neoenergia</th>
-                  <th class="py-3.5 px-4 font-bold">Desc. Fio B</th>
                   <th class="py-3.5 px-4 font-bold">Total ACGO</th>
                   <th class="py-3.5 px-4 font-bold">Economia</th>
+                  <th class="py-3.5 px-4 font-bold">Status Pagamento</th>
+                  <th class="py-3.5 px-4 font-bold text-right">Comprovante</th>
                 </tr>
               </thead>
               <tbody id="dashInvoicesTable" class="divide-y divide-slate-100"></tbody>
@@ -483,8 +481,8 @@
                   <input type="text" id="invDate" required maxlength="10" oninput="app.maskDate(this)" placeholder="dd/mm/aaaa" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
                 </div>
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tarifa Neoenergia (R$/kWh)</label>
-                  <input type="text" id="invNeoRate" value="R$ 0,98" oninput="app.maskCurrency(this); app.recalcInvoicePreview()" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Data Vencimento (dd/mm/aaaa) *</label>
+                  <input type="text" id="invDueDate" required maxlength="10" oninput="app.maskDate(this)" placeholder="dd/mm/aaaa" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-3">
@@ -497,14 +495,42 @@
                   <input type="number" id="invFinalReading" required min="0" step="1" oninput="app.recalcInvoicePreview()" placeholder="Ex: 11120" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
                 </div>
               </div>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-3 gap-2.5">
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Taxa Neoenergia (R$) *</label>
-                  <input type="text" id="invNeoFee" required value="R$ 0,00" oninput="app.maskCurrency(this); app.recalcInvoicePreview()" placeholder="R$ 0.000,00" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                  <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Taxa Neoenergia *</label>
+                  <input type="text" id="invNeoFee" required value="R$ 0,00" oninput="app.maskCurrency(this); app.recalcInvoicePreview()" placeholder="R$ 0,00" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm" />
                 </div>
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Desconto Fio B (R$) *</label>
-                  <input type="text" id="invFioBDiscount" required value="R$ 0,00" oninput="app.maskCurrency(this); app.recalcInvoicePreview()" placeholder="R$ 0.000,00" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                  <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Desc. Fio B *</label>
+                  <input type="text" id="invFioBDiscount" required value="R$ 0,00" oninput="app.maskCurrency(this); app.recalcInvoicePreview()" placeholder="R$ 0,00" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Tarifa Neo (kWh)</label>
+                  <input type="text" id="invNeoRate" value="R$ 0,98" oninput="app.maskCurrency(this); app.recalcInvoicePreview()" class="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+              </div>
+
+              <!-- STATUS DE PAGAMENTO + DATA DE QUITAÇÃO -->
+              <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Situação Pagamento *</label>
+                    <select id="invPaymentStatus" onchange="app.togglePaidDateField()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold bg-white">
+                      <option value="pendente">Em Aberto / Pendente</option>
+                      <option value="pago">Pago / Quitado</option>
+                    </select>
+                  </div>
+                  <div id="paidDateWrapper" class="hidden">
+                    <label class="block text-xs font-bold text-emerald-800 uppercase mb-1">Data Pagamento *</label>
+                    <input type="text" id="invPaidDate" maxlength="10" oninput="app.maskDate(this)" placeholder="dd/mm/aaaa" class="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-white text-sm" />
+                  </div>
+                </div>
+
+                <!-- ANEXO DE COMPROVANTE GRATUITO (PDF OU IMAGEM ATÉ 700KB) -->
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Comprovante de Pagamento (PDF ou Imagem)</label>
+                  <input type="file" id="invReceiptFile" accept=".pdf,image/png,image/jpeg,image/webp" onchange="app.handleReceiptSelect(event)" class="w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#0A2558] file:text-white hover:file:bg-[#1E88E5] cursor-pointer" />
+                  <p id="invReceiptInfo" class="text-[11px] text-slate-500 mt-1">Nenhum arquivo anexado (máx. 700 KB).</p>
                 </div>
               </div>
 
@@ -536,7 +562,7 @@
                 </div>
               </div>
 
-              <button type="submit" class="w-full py-3 rounded-xl bg-[#2E7D32] hover:bg-[#1B5E20] text-white font-bold text-sm transition">
+              <button type="submit" id="invoiceSubmitBtn" class="w-full py-3 rounded-xl bg-[#2E7D32] hover:bg-[#1B5E20] text-white font-bold text-sm transition">
                 Salvar Fatura
               </button>
             </form>
@@ -550,12 +576,12 @@
               <table class="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
-                    <th class="py-3.5 px-4 font-bold">Data</th>
-                    <th class="py-3.5 px-4 font-bold">Endereço</th>
-                    <th class="py-3.5 px-4 font-bold">Consumo</th>
-                    <th class="py-3.5 px-4 font-bold">Taxa Neoenergia</th>
-                    <th class="py-3.5 px-4 font-bold">Total ACGO</th>
-                    <th class="py-3.5 px-4 font-bold text-right">Ações</th>
+                    <th class="py-3.5 px-3 font-bold">Leitura / Venc.</th>
+                    <th class="py-3.5 px-3 font-bold">Endereço</th>
+                    <th class="py-3.5 px-3 font-bold">Total ACGO</th>
+                    <th class="py-3.5 px-3 font-bold">Status Pagamento</th>
+                    <th class="py-3.5 px-3 font-bold">Comprovante</th>
+                    <th class="py-3.5 px-3 font-bold text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody id="invoicesTableBody" class="divide-y divide-slate-100"></tbody>
