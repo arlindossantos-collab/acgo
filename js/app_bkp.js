@@ -1,5 +1,17 @@
 const ACGO_TARIFF = 0.75; // R$ 0,75 por kWh
 
+// Paleta de cores distintas para diferenciar cada endereço nos gráficos e tags
+const ADDRESS_PALETTE = [
+  { hex: '#1E88E5', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8' }, // Azul Solar
+  { hex: '#2E7D32', bgSoft: '#ECFDF5', border: '#A7F3D0', text: '#047857' }, // Verde Esmeralda
+  { hex: '#D97706', bgSoft: '#FFFBEB', border: '#FDE68A', text: '#B45309' }, // Dourado Âmbar
+  { hex: '#7C3AED', bgSoft: '#F5F3FF', border: '#DDD6FE', text: '#6D28D9' }, // Violeta
+  { hex: '#0D9488', bgSoft: '#F0FDFA', border: '#99F6E4', text: '#0F766E' }, // Turquesa
+  { hex: '#E11D48', bgSoft: '#FFF1F2', border: '#FECDD3', text: '#BE123C' }, // Carmesim
+  { hex: '#EA580C', bgSoft: '#FFF7ED', border: '#FED7AA', text: '#C2410C' }, // Laranja
+  { hex: '#0284C7', bgSoft: '#F0F9FF', border: '#BAE6FD', text: '#0369A1' }  // Ciano
+];
+
 const app = {
   state: {
     users: [],
@@ -48,6 +60,16 @@ const app = {
     }
   },
 
+  // --- CORES POR ENDEREÇO ---
+  getAddressColor(addressId) {
+    if (!addressId || addressId === 'all') {
+      return { hex: '#0A2558', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#0A2558' };
+    }
+    const idx = this.state.addresses.findIndex(a => a.id === addressId);
+    const safeIdx = idx >= 0 ? idx : 0;
+    return ADDRESS_PALETTE[safeIdx % ADDRESS_PALETTE.length];
+  },
+
   // --- AUTENTICAÇÃO E CONTROLE DE ACESSO ---
   showLoginScreen() {
     document.getElementById('loginScreen').classList.remove('hidden');
@@ -60,7 +82,6 @@ const app = {
     const passInput = document.getElementById('loginPassword').value;
     const errorEl = document.getElementById('loginErrorMsg');
 
-    // Recarrega usuários do banco antes de autenticar para garantir senhas atualizadas
     await this.loadAllData();
 
     const matchedUser = this.state.users.find(
@@ -187,12 +208,12 @@ const app = {
     });
 
     await this.saveDocument('invoices', null, {
-      addressId: addr1Id,
+      addressId: addr2Id,
       date: '15/10/2026',
-      initialReading: 13050,
-      finalReading: 13780,
+      initialReading: 8200,
+      finalReading: 8740,
       neoFee: 39.10,
-      fioBDiscount: 48.20,
+      fioBDiscount: 36.50,
       neoRate: 0.98
     });
 
@@ -304,6 +325,41 @@ const app = {
     this.renderDashboard();
   },
 
+  clearDashboardPeriod() {
+    document.getElementById('dashDateStart').value = '';
+    document.getElementById('dashDateEnd').value = '';
+    this.renderDashboard();
+  },
+
+  updateAddressBadges(selectedAddrId, availableAddrs) {
+    const color = this.getAddressColor(selectedAddrId);
+    const addrObj = availableAddrs.find(a => a.id === selectedAddrId);
+    const labelText = addrObj
+      ? `${addrObj.logradouro}, ${addrObj.numero} — ${addrObj.bairro}`
+      : `Todos os endereços (${availableAddrs.length})`;
+
+    const mainTag = document.getElementById('dashActiveAddressTag');
+    const mainDot = document.getElementById('dashActiveAddressDot');
+    const mainLabel = document.getElementById('dashActiveAddressLabel');
+
+    if (mainTag && mainDot && mainLabel) {
+      mainTag.style.backgroundColor = color.bgSoft;
+      mainTag.style.borderColor = color.border;
+      mainTag.style.color = color.text;
+      mainDot.style.backgroundColor = color.hex;
+      mainLabel.textContent = labelText;
+    }
+
+    ['chart1AddressBadge', 'chart2AddressBadge'].forEach(badgeId => {
+      const badgeEl = document.getElementById(badgeId);
+      if (!badgeEl) return;
+      badgeEl.style.backgroundColor = color.bgSoft;
+      badgeEl.style.borderColor = color.border;
+      badgeEl.style.color = color.text;
+      badgeEl.innerHTML = `<span class="w-2 h-2 rounded-full" style="background-color: ${color.hex};"></span> ${labelText}`;
+    });
+  },
+
   renderDashboard() {
     const activeUser = this.getActiveUser();
     const isAdmin = activeUser && activeUser.role === 'administrador';
@@ -332,9 +388,31 @@ const app = {
     }
 
     const finalAddrFilter = dashAddressSelect.value;
+    this.updateAddressBadges(finalAddrFilter, availableAddrs);
+
+    // Filtro de período (datas válidas dd/mm/aaaa)
+    const startStr = (document.getElementById('dashDateStart')?.value || '').trim();
+    const endStr = (document.getElementById('dashDateEnd')?.value || '').trim();
+    const startTs = this.isValidDate(startStr) ? this.dateToTimestamp(startStr) : null;
+    const endTs = this.isValidDate(endStr) ? this.dateToTimestamp(endStr) : null;
+
+    const periodBadge = document.getElementById('dashPeriodSummaryBadge');
+    if (periodBadge) {
+      if (startTs && endTs) periodBadge.textContent = `Período: ${startStr} até ${endStr}`;
+      else if (startTs) periodBadge.textContent = `A partir de ${startStr}`;
+      else if (endTs) periodBadge.textContent = `Até ${endStr}`;
+      else periodBadge.textContent = 'Todo o histórico';
+    }
+
     const filteredInvoices = this.state.invoices
       .filter(inv => allowedAddressIds.includes(inv.addressId))
       .filter(inv => finalAddrFilter === 'all' || inv.addressId === finalAddrFilter)
+      .filter(inv => {
+        const invTs = this.dateToTimestamp(inv.date);
+        if (startTs && invTs < startTs) return false;
+        if (endTs && invTs > endTs) return false;
+        return true;
+      })
       .sort((a, b) => this.dateToTimestamp(a.date) - this.dateToTimestamp(b.date));
 
     let totalKwh = 0, totalAcgo = 0, totalNeo = 0;
@@ -345,12 +423,19 @@ const app = {
       totalAcgo += calc.acgoTotal;
       totalNeo += calc.neoTotal;
       const addr = this.state.addresses.find(a => a.id === inv.addressId);
+      const addrColor = this.getAddressColor(inv.addressId);
       const addrLabel = addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço removido';
 
       return `
         <tr class="hover:bg-slate-50">
           <td class="py-3.5 px-4 font-semibold text-slate-800">${inv.date}</td>
-          <td class="py-3.5 px-4 text-slate-600">${addrLabel}</td>
+          <td class="py-3.5 px-4">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border"
+                  style="background-color: ${addrColor.bgSoft}; border-color: ${addrColor.border}; color: ${addrColor.text};">
+              <span class="w-2 h-2 rounded-full" style="background-color: ${addrColor.hex};"></span>
+              ${addrLabel}
+            </span>
+          </td>
           <td class="py-3.5 px-4 text-slate-600">${inv.initialReading} → ${inv.finalReading}</td>
           <td class="py-3.5 px-4 font-bold text-[#0A2558]">${calc.consumption} kWh</td>
           <td class="py-3.5 px-4 text-slate-700 font-medium">${this.formatCurrency(calc.energyCost)}</td>
@@ -372,9 +457,9 @@ const app = {
     document.getElementById('kpiSavingsPercent').textContent = `${savingsPct}% de redução frente à concessionária`;
 
     document.getElementById('dashInvoicesTable').innerHTML = rowsHtml ||
-      `<tr><td colspan="9" class="py-8 text-center text-slate-400">Nenhuma leitura lançada para este filtro.</td></tr>`;
+      `<tr><td colspan="9" class="py-8 text-center text-slate-400">Nenhuma leitura lançada para o endereço ou período selecionado.</td></tr>`;
 
-    this.renderCharts(filteredInvoices);
+    this.renderCharts(filteredInvoices, finalAddrFilter);
   },
 
   dateToTimestamp(dateStr) {
@@ -389,7 +474,6 @@ const app = {
     const fioBDiscount = Number(inv.fioBDiscount || 0);
     const neoRate = Number(inv.neoRate || 0.98);
 
-    // Total Fatura ACGO = Energia ACGO + Taxa Neoenergia - Desconto Fio B
     const acgoTotal = Math.max(0, energyCost + neoFee - fioBDiscount);
     const neoTotal = (consumption * neoRate) + neoFee;
     const savings = neoTotal - acgoTotal;
@@ -397,11 +481,29 @@ const app = {
     return { consumption, energyCost, neoFee, fioBDiscount, acgoTotal, neoTotal, savings };
   },
 
-  renderCharts(invoices) {
-    const labels = invoices.map(i => i.date);
+  renderCharts(invoices, selectedAddrFilter) {
+    const labels = invoices.map(i => {
+      if (selectedAddrFilter === 'all') {
+        const addr = this.state.addresses.find(a => a.id === i.addressId);
+        return addr ? `${i.date} (${addr.logradouro}, ${addr.numero})` : i.date;
+      }
+      return i.date;
+    });
+
     const kwhData = invoices.map(i => this.calculateInvoice(i).consumption);
     const acgoData = invoices.map(i => this.calculateInvoice(i).acgoTotal);
     const neoData = invoices.map(i => this.calculateInvoice(i).neoTotal);
+
+    // Cores dinâmicas por endereço
+    const barColors = invoices.map(i => this.getAddressColor(i.addressId).hex);
+    const activeColorHex = selectedAddrFilter !== 'all'
+      ? this.getAddressColor(selectedAddrFilter).hex
+      : '#2E7D32';
+
+    const selectedAddrObj = this.state.addresses.find(a => a.id === selectedAddrFilter);
+    const datasetSuffix = selectedAddrObj
+      ? ` — ${selectedAddrObj.logradouro}, ${selectedAddrObj.numero}`
+      : ' — Todos os Endereços';
 
     if (this.state.charts.consumption) this.state.charts.consumption.destroy();
     if (this.state.charts.financial) this.state.charts.financial.destroy();
@@ -411,13 +513,19 @@ const app = {
       data: {
         labels,
         datasets: [{
-          label: 'Consumo (kWh)',
+          label: `Consumo (kWh)${datasetSuffix}`,
           data: kwhData,
-          backgroundColor: '#1E88E5',
+          backgroundColor: barColors.length ? barColors : activeColorHex,
           borderRadius: 8
         }]
       },
-      options: { responsive: true, maintainAspectRatio: false }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true }
+        }
+      }
     });
 
     this.state.charts.financial = new Chart(document.getElementById('chartFinancial'), {
@@ -425,11 +533,31 @@ const app = {
       data: {
         labels,
         datasets: [
-          { label: 'Fatura ACGO (R$)', data: acgoData, borderColor: '#2E7D32', backgroundColor: '#2E7D32', tension: 0.3 },
-          { label: 'Neoenergia Sem Solar (R$)', data: neoData, borderColor: '#0A2558', backgroundColor: '#0A2558', borderDash: [5, 5], tension: 0.3 }
+          {
+            label: `Fatura ACGO (R$)${datasetSuffix}`,
+            data: acgoData,
+            borderColor: activeColorHex,
+            backgroundColor: activeColorHex,
+            pointBackgroundColor: barColors.length ? barColors : activeColorHex,
+            pointRadius: 5,
+            borderWidth: 3,
+            tension: 0.3
+          },
+          {
+            label: 'Neoenergia Sem Solar (R$)',
+            data: neoData,
+            borderColor: '#0A2558',
+            backgroundColor: '#0A2558',
+            borderDash: [5, 5],
+            pointRadius: 4,
+            tension: 0.3
+          }
         ]
       },
-      options: { responsive: true, maintainAspectRatio: false }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
     });
   },
 
@@ -543,17 +671,23 @@ const app = {
 
   // --- CRUD ENDEREÇOS ---
   renderAddressesView() {
-    document.getElementById('addressesTableBody').innerHTML = this.state.addresses.map(a => `
-      <tr class="hover:bg-slate-50">
-        <td class="py-3.5 px-4 font-semibold text-slate-800">${a.logradouro}, ${a.numero}</td>
-        <td class="py-3.5 px-4 text-slate-600">${a.bairro} — ${a.cidade}</td>
-        <td class="py-3.5 px-4 text-slate-600">${a.cep}</td>
-        <td class="py-3.5 px-4 text-right space-x-2">
-          <button onclick="app.editAddress('${a.id}')" class="text-xs font-bold text-[#1E88E5] hover:underline">Editar</button>
-          <button onclick="app.removeAddress('${a.id}')" class="text-xs font-bold text-red-600 hover:underline">Excluir</button>
-        </td>
-      </tr>
-    `).join('');
+    document.getElementById('addressesTableBody').innerHTML = this.state.addresses.map(a => {
+      const color = this.getAddressColor(a.id);
+      return `
+        <tr class="hover:bg-slate-50">
+          <td class="py-3.5 px-4 font-semibold text-slate-800">
+            <span class="inline-block w-2.5 h-2.5 rounded-full mr-2" style="background-color: ${color.hex};"></span>
+            ${a.logradouro}, ${a.numero}
+          </td>
+          <td class="py-3.5 px-4 text-slate-600">${a.bairro} — ${a.cidade}</td>
+          <td class="py-3.5 px-4 text-slate-600">${a.cep}</td>
+          <td class="py-3.5 px-4 text-right space-x-2">
+            <button onclick="app.editAddress('${a.id}')" class="text-xs font-bold text-[#1E88E5] hover:underline">Editar</button>
+            <button onclick="app.removeAddress('${a.id}')" class="text-xs font-bold text-red-600 hover:underline">Excluir</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
   },
 
   async saveAddress(e) {

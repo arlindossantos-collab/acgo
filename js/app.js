@@ -1,9 +1,11 @@
 const ACGO_TARIFF = 0.75; // R$ 0,75 por kWh
 
+const MONTH_ABBR = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+
 // Paleta de cores distintas para diferenciar cada endereço nos gráficos e tags
 const ADDRESS_PALETTE = [
-  { hex: '#1E88E5', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8' }, // Azul Solar
   { hex: '#2E7D32', bgSoft: '#ECFDF5', border: '#A7F3D0', text: '#047857' }, // Verde Esmeralda
+  { hex: '#1E88E5', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8' }, // Azul Solar
   { hex: '#D97706', bgSoft: '#FFFBEB', border: '#FDE68A', text: '#B45309' }, // Dourado Âmbar
   { hex: '#7C3AED', bgSoft: '#F5F3FF', border: '#DDD6FE', text: '#6D28D9' }, // Violeta
   { hex: '#0D9488', bgSoft: '#F0FDFA', border: '#99F6E4', text: '#0F766E' }, // Turquesa
@@ -60,7 +62,7 @@ const app = {
     }
   },
 
-  // --- CORES POR ENDEREÇO ---
+  // --- CORES E FORMATAÇÃO DE MÊS ---
   getAddressColor(addressId) {
     if (!addressId || addressId === 'all') {
       return { hex: '#0A2558', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#0A2558' };
@@ -68,6 +70,15 @@ const app = {
     const idx = this.state.addresses.findIndex(a => a.id === addressId);
     const safeIdx = idx >= 0 ? idx : 0;
     return ADDRESS_PALETTE[safeIdx % ADDRESS_PALETTE.length];
+  },
+
+  formatMonthYear(dateStr) {
+    const parts = (dateStr || '').split('/');
+    if (parts.length !== 3) return dateStr;
+    const monthIdx = parseInt(parts[1], 10) - 1;
+    const year = parts[2];
+    const abbr = MONTH_ABBR[monthIdx] || parts[1];
+    return `${abbr}/${year}`;
   },
 
   // --- AUTENTICAÇÃO E CONTROLE DE ACESSO ---
@@ -390,7 +401,6 @@ const app = {
     const finalAddrFilter = dashAddressSelect.value;
     this.updateAddressBadges(finalAddrFilter, availableAddrs);
 
-    // Filtro de período (datas válidas dd/mm/aaaa)
     const startStr = (document.getElementById('dashDateStart')?.value || '').trim();
     const endStr = (document.getElementById('dashDateEnd')?.value || '').trim();
     const startTs = this.isValidDate(startStr) ? this.dateToTimestamp(startStr) : null;
@@ -459,7 +469,7 @@ const app = {
     document.getElementById('dashInvoicesTable').innerHTML = rowsHtml ||
       `<tr><td colspan="9" class="py-8 text-center text-slate-400">Nenhuma leitura lançada para o endereço ou período selecionado.</td></tr>`;
 
-    this.renderCharts(filteredInvoices, finalAddrFilter);
+    this.renderCharts(filteredInvoices);
   },
 
   dateToTimestamp(dateStr) {
@@ -481,82 +491,184 @@ const app = {
     return { consumption, energyCost, neoFee, fioBDiscount, acgoTotal, neoTotal, savings };
   },
 
-  renderCharts(invoices, selectedAddrFilter) {
-    const labels = invoices.map(i => {
-      if (selectedAddrFilter === 'all') {
-        const addr = this.state.addresses.find(a => a.id === i.addressId);
-        return addr ? `${i.date} (${addr.logradouro}, ${addr.numero})` : i.date;
-      }
-      return i.date;
-    });
-
-    const kwhData = invoices.map(i => this.calculateInvoice(i).consumption);
-    const acgoData = invoices.map(i => this.calculateInvoice(i).acgoTotal);
-    const neoData = invoices.map(i => this.calculateInvoice(i).neoTotal);
-
-    // Cores dinâmicas por endereço
-    const barColors = invoices.map(i => this.getAddressColor(i.addressId).hex);
-    const activeColorHex = selectedAddrFilter !== 'all'
-      ? this.getAddressColor(selectedAddrFilter).hex
-      : '#2E7D32';
-
-    const selectedAddrObj = this.state.addresses.find(a => a.id === selectedAddrFilter);
-    const datasetSuffix = selectedAddrObj
-      ? ` — ${selectedAddrObj.logradouro}, ${selectedAddrObj.numero}`
-      : ' — Todos os Endereços';
-
+  renderCharts(invoices) {
     if (this.state.charts.consumption) this.state.charts.consumption.destroy();
     if (this.state.charts.financial) this.state.charts.financial.destroy();
+
+    // 1. Coleta os endereços presentes nas faturas filtradas mantendo a ordem da paleta
+    const presentAddressIds = [...new Set(invoices.map(i => i.addressId))].sort((a, b) => {
+      return this.state.addresses.findIndex(x => x.id === a) - this.state.addresses.findIndex(x => x.id === b);
+    });
+
+    // 2. GRÁFICO 1 (BARRAS): Agrupado por cor/endereço lado a lado, com rótulo curto MMM/AAAA abaixo
+    const groupedItems = [];
+    presentAddressIds.forEach(addrId => {
+      const addrInvoices = invoices
+        .filter(i => i.addressId === addrId)
+        .sort((a, b) => this.dateToTimestamp(a.date) - this.dateToTimestamp(b.date));
+      addrInvoices.forEach(inv => groupedItems.push(inv));
+    });
+
+    const barLabels = groupedItems.map(inv => this.formatMonthYear(inv.date));
+    const barValues = groupedItems.map(inv => this.calculateInvoice(inv).consumption);
+    const barColors = groupedItems.map(inv => this.getAddressColor(inv.addressId).hex);
+
+    // Datasets de legenda no topo com a cor e nome curto de cada endereço
+    const consumptionLegendDatasets = presentAddressIds.map((addrId, index) => {
+      const addr = this.state.addresses.find(a => a.id === addrId);
+      const color = this.getAddressColor(addrId).hex;
+      const addrName = addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço';
+
+      return {
+        label: addrName,
+        data: index === 0 ? barValues : [],
+        backgroundColor: index === 0 ? barColors : color,
+        borderColor: color,
+        borderRadius: 6,
+        grouped: false
+      };
+    });
 
     this.state.charts.consumption = new Chart(document.getElementById('chartConsumption'), {
       type: 'bar',
       data: {
-        labels,
-        datasets: [{
-          label: `Consumo (kWh)${datasetSuffix}`,
-          data: kwhData,
-          backgroundColor: barColors.length ? barColors : activeColorHex,
-          borderRadius: 8
+        labels: barLabels,
+        datasets: consumptionLegendDatasets.length ? consumptionLegendDatasets : [{
+          label: 'Sem dados',
+          data: [],
+          backgroundColor: '#1E88E5'
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        scales: {
+          x: {
+            ticks: {
+              maxRotation: 0,
+              autoSkip: false,
+              font: { weight: 'bold', size: 11 }
+            }
+          }
+        },
         plugins: {
-          legend: { display: true }
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              usePointStyle: true,
+              pointStyle: 'rectRounded',
+              font: { size: 11, weight: '600' },
+              generateLabels: () => presentAddressIds.map(addrId => {
+                const addr = this.state.addresses.find(a => a.id === addrId);
+                const color = this.getAddressColor(addrId).hex;
+                return {
+                  text: addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço',
+                  fillStyle: color,
+                  strokeStyle: color,
+                  lineWidth: 0,
+                  hidden: false
+                };
+              })
+            }
+          },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const idx = items[0]?.dataIndex ?? 0;
+                const inv = groupedItems[idx];
+                if (!inv) return '';
+                const addr = this.state.addresses.find(a => a.id === inv.addressId);
+                return `${this.formatMonthYear(inv.date)} — ${addr ? `${addr.logradouro},${addr.numero}` : ''}`;
+              },
+              label: (ctx) => ` Consumo: ${ctx.parsed.y} kWh`
+            }
+          }
         }
       }
     });
 
+    // 3. GRÁFICO 2 (LINHAS): Meses curtos MMM/AAAA no eixo X e uma série colorida por endereço + Neoenergia
+    const uniqueMonthKeys = [];
+    const monthTimestampMap = {};
+    invoices.forEach(inv => {
+      const mKey = this.formatMonthYear(inv.date);
+      if (!monthTimestampMap[mKey]) {
+        monthTimestampMap[mKey] = this.dateToTimestamp(inv.date);
+        uniqueMonthKeys.push(mKey);
+      }
+    });
+    uniqueMonthKeys.sort((a, b) => monthTimestampMap[a] - monthTimestampMap[b]);
+
+    const financialDatasets = presentAddressIds.map(addrId => {
+      const addr = this.state.addresses.find(a => a.id === addrId);
+      const color = this.getAddressColor(addrId).hex;
+      const addrName = addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço';
+
+      const seriesData = uniqueMonthKeys.map(mKey => {
+        const match = invoices.find(i => i.addressId === addrId && this.formatMonthYear(i.date) === mKey);
+        return match ? this.calculateInvoice(match).acgoTotal : null;
+      });
+
+      return {
+        label: `ACGO — ${addrName}`,
+        data: seriesData,
+        borderColor: color,
+        backgroundColor: color,
+        pointBackgroundColor: color,
+        pointRadius: 5,
+        borderWidth: 3,
+        spanGaps: true,
+        tension: 0.3
+      };
+    });
+
+    if (uniqueMonthKeys.length > 0) {
+      const neoSeriesData = uniqueMonthKeys.map(mKey => {
+        const monthInvs = invoices.filter(i => this.formatMonthYear(i.date) === mKey);
+        if (!monthInvs.length) return null;
+        const avgNeo = monthInvs.reduce((acc, item) => acc + this.calculateInvoice(item).neoTotal, 0) / monthInvs.length;
+        return Number(avgNeo.toFixed(2));
+      });
+
+      financialDatasets.push({
+        label: 'Neoenergia Sem Solar (Média R$)',
+        data: neoSeriesData,
+        borderColor: '#0A2558',
+        backgroundColor: '#0A2558',
+        borderDash: [5, 5],
+        pointRadius: 4,
+        tension: 0.3
+      });
+    }
+
     this.state.charts.financial = new Chart(document.getElementById('chartFinancial'), {
       type: 'line',
       data: {
-        labels,
-        datasets: [
-          {
-            label: `Fatura ACGO (R$)${datasetSuffix}`,
-            data: acgoData,
-            borderColor: activeColorHex,
-            backgroundColor: activeColorHex,
-            pointBackgroundColor: barColors.length ? barColors : activeColorHex,
-            pointRadius: 5,
-            borderWidth: 3,
-            tension: 0.3
-          },
-          {
-            label: 'Neoenergia Sem Solar (R$)',
-            data: neoData,
-            borderColor: '#0A2558',
-            backgroundColor: '#0A2558',
-            borderDash: [5, 5],
-            pointRadius: 4,
-            tension: 0.3
-          }
-        ]
+        labels: uniqueMonthKeys,
+        datasets: financialDatasets
       },
       options: {
         responsive: true,
-        maintainAspectRatio: false
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            ticks: {
+              maxRotation: 0,
+              font: { weight: 'bold', size: 11 }
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              usePointStyle: true,
+              font: { size: 11, weight: '600' }
+            }
+          }
+        }
       }
     });
   },
@@ -671,177 +783,4 @@ const app = {
 
   // --- CRUD ENDEREÇOS ---
   renderAddressesView() {
-    document.getElementById('addressesTableBody').innerHTML = this.state.addresses.map(a => {
-      const color = this.getAddressColor(a.id);
-      return `
-        <tr class="hover:bg-slate-50">
-          <td class="py-3.5 px-4 font-semibold text-slate-800">
-            <span class="inline-block w-2.5 h-2.5 rounded-full mr-2" style="background-color: ${color.hex};"></span>
-            ${a.logradouro}, ${a.numero}
-          </td>
-          <td class="py-3.5 px-4 text-slate-600">${a.bairro} — ${a.cidade}</td>
-          <td class="py-3.5 px-4 text-slate-600">${a.cep}</td>
-          <td class="py-3.5 px-4 text-right space-x-2">
-            <button onclick="app.editAddress('${a.id}')" class="text-xs font-bold text-[#1E88E5] hover:underline">Editar</button>
-            <button onclick="app.removeAddress('${a.id}')" class="text-xs font-bold text-red-600 hover:underline">Excluir</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
-  },
-
-  async saveAddress(e) {
-    e.preventDefault();
-    const cep = document.getElementById('addrCep').value.trim();
-    if (!/^\d{5}-\d{3}$/.test(cep)) {
-      alert('Informe um CEP válido no formato 00000-000.');
-      return;
-    }
-
-    const id = document.getElementById('addressId').value || null;
-    await this.saveDocument('addresses', id, {
-      logradouro: document.getElementById('addrLogradouro').value.trim(),
-      numero: document.getElementById('addrNumero').value.trim(),
-      bairro: document.getElementById('addrBairro').value.trim(),
-      cep,
-      cidade: document.getElementById('addrCidade').value.trim()
-    });
-
-    await this.loadAllData();
-    this.resetAddressForm();
-    this.renderAddressesView();
-  },
-
-  editAddress(id) {
-    const a = this.state.addresses.find(addr => addr.id === id);
-    if (!a) return;
-    document.getElementById('addressFormTitle').textContent = 'Editar Endereço';
-    document.getElementById('addressId').value = a.id;
-    document.getElementById('addrLogradouro').value = a.logradouro;
-    document.getElementById('addrNumero').value = a.numero;
-    document.getElementById('addrBairro').value = a.bairro;
-    document.getElementById('addrCep').value = a.cep;
-    document.getElementById('addrCidade').value = a.cidade;
-  },
-
-  async removeAddress(id) {
-    if (!confirm('Deseja excluir este endereço?')) return;
-    await this.deleteDocument('addresses', id);
-    await this.loadAllData();
-    this.renderAddressesView();
-  },
-
-  resetAddressForm() {
-    document.getElementById('addressFormTitle').textContent = 'Cadastrar / Editar Endereço';
-    document.getElementById('addressForm').reset();
-    document.getElementById('addressId').value = '';
-  },
-
-  // --- CRUD FATURAS ---
-  renderInvoicesView() {
-    const sel = document.getElementById('invAddressId');
-    sel.innerHTML = this.state.addresses.map(a =>
-      `<option value="${a.id}">${a.logradouro}, ${a.numero} (${a.bairro} - ${a.cidade})</option>`
-    ).join('');
-
-    document.getElementById('invoicesTableBody').innerHTML = this.state.invoices.map(inv => {
-      const addr = this.state.addresses.find(a => a.id === inv.addressId);
-      const calc = this.calculateInvoice(inv);
-      return `
-        <tr class="hover:bg-slate-50">
-          <td class="py-3.5 px-4 font-semibold">${inv.date}</td>
-          <td class="py-3.5 px-4 text-slate-600">${addr ? `${addr.logradouro}, ${addr.numero}` : 'N/A'}</td>
-          <td class="py-3.5 px-4 font-bold text-[#0A2558]">${calc.consumption} kWh</td>
-          <td class="py-3.5 px-4 text-slate-600">${this.formatCurrency(calc.neoFee)}</td>
-          <td class="py-3.5 px-4 font-extrabold text-[#2E7D32]">${this.formatCurrency(calc.acgoTotal)}</td>
-          <td class="py-3.5 px-4 text-right space-x-2">
-            <button onclick="app.editInvoice('${inv.id}')" class="text-xs font-bold text-[#1E88E5] hover:underline">Editar</button>
-            <button onclick="app.removeInvoice('${inv.id}')" class="text-xs font-bold text-red-600 hover:underline">Excluir</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
-    this.recalcInvoicePreview();
-  },
-
-  recalcInvoicePreview() {
-    const initial = Number(document.getElementById('invInitialReading').value || 0);
-    const final = Number(document.getElementById('invFinalReading').value || 0);
-    const neoFee = this.parseCurrency(document.getElementById('invNeoFee').value);
-    const fioBDiscount = this.parseCurrency(document.getElementById('invFioBDiscount').value);
-    const neoRate = this.parseCurrency(document.getElementById('invNeoRate').value) || 0.98;
-
-    const calc = this.calculateInvoice({ initialReading: initial, finalReading: final, neoFee, fioBDiscount, neoRate });
-    document.getElementById('prevConsumption').textContent = `${calc.consumption} kWh`;
-    document.getElementById('prevEnergyCost').textContent = this.formatCurrency(calc.energyCost);
-    document.getElementById('prevNeoFee').textContent = `+ ${this.formatCurrency(calc.neoFee)}`;
-    document.getElementById('prevFioBDiscount').textContent = `- ${this.formatCurrency(calc.fioBDiscount)}`;
-    document.getElementById('prevTotalAcgo').textContent = this.formatCurrency(calc.acgoTotal);
-    document.getElementById('prevSavings').textContent = this.formatCurrency(calc.savings);
-  },
-
-  async saveInvoice(e) {
-    e.preventDefault();
-    const date = document.getElementById('invDate').value.trim();
-    if (!this.isValidDate(date)) {
-      alert('Data inválida. Utilize o formato dd/mm/aaaa.');
-      return;
-    }
-
-    const initialReading = Number(document.getElementById('invInitialReading').value);
-    const finalReading = Number(document.getElementById('invFinalReading').value);
-    if (finalReading < initialReading) {
-      alert('A leitura final deve ser maior ou igual à leitura inicial.');
-      return;
-    }
-
-    const id = document.getElementById('invoiceId').value || null;
-    await this.saveDocument('invoices', id, {
-      addressId: document.getElementById('invAddressId').value,
-      date,
-      initialReading,
-      finalReading,
-      neoFee: this.parseCurrency(document.getElementById('invNeoFee').value),
-      fioBDiscount: this.parseCurrency(document.getElementById('invFioBDiscount').value),
-      neoRate: this.parseCurrency(document.getElementById('invNeoRate').value) || 0.98
-    });
-
-    await this.loadAllData();
-    this.resetInvoiceForm();
-    this.renderInvoicesView();
-  },
-
-  editInvoice(id) {
-    const inv = this.state.invoices.find(i => i.id === id);
-    if (!inv) return;
-    document.getElementById('invoiceFormTitle').textContent = 'Editar Fatura';
-    document.getElementById('invoiceId').value = inv.id;
-    document.getElementById('invAddressId').value = inv.addressId;
-    document.getElementById('invDate').value = inv.date;
-    document.getElementById('invInitialReading').value = inv.initialReading;
-    document.getElementById('invFinalReading').value = inv.finalReading;
-    document.getElementById('invNeoFee').value = this.formatCurrency(inv.neoFee);
-    document.getElementById('invFioBDiscount').value = this.formatCurrency(inv.fioBDiscount);
-    document.getElementById('invNeoRate').value = this.formatCurrency(inv.neoRate || 0.98);
-    this.recalcInvoicePreview();
-  },
-
-  async removeInvoice(id) {
-    if (!confirm('Deseja excluir esta fatura?')) return;
-    await this.deleteDocument('invoices', id);
-    await this.loadAllData();
-    this.renderInvoicesView();
-  },
-
-  resetInvoiceForm() {
-    document.getElementById('invoiceFormTitle').textContent = 'Lançar / Editar Leitura & Fatura';
-    document.getElementById('invoiceForm').reset();
-    document.getElementById('invoiceId').value = '';
-    document.getElementById('invNeoFee').value = 'R$ 0,00';
-    document.getElementById('invFioBDiscount').value = 'R$ 0,00';
-    document.getElementById('invNeoRate').value = 'R$ 0,98';
-    this.recalcInvoicePreview();
-  }
-};
-
-document.addEventListener('DOMContentLoaded', () => app.init());
+    document.getElementById('addressesTableBody').innerHTML = this.state.addresses.map
