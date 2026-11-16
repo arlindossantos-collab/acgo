@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ACGO Energia Solar — Gestão de Usina & Faturamento</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+
+  <!-- TELA DE LOGIN OBRIGATÓRIA -->
+  <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0A2558] via-[#12397A] to-[#1B5E20] px-4 py-10">
+    <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 space-y-6">
+      <div class="flex flex-col items-center text-center">
+        <!-- Logo Vetorial ACGO -->
+        <svg class="w-24 h-24 drop-shadow-md mb-3" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <clipPath id="loginCircleClip"><circle cx="100" cy="100" r="96" /></clipPath>
+            <linearGradient id="loginSkyGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#0A2558" />
+              <stop offset="55%" stop-color="#1E88E5" />
+              <stop offset="100%" stop-color="#E3F2FD" />
+            </linearGradient>
+            <linearGradient id="loginSunGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#FFE082" />
+              <stop offset="100%" stop-color="#F9A825" />
+            </linearGradient>
+            <linearGradient id="loginHillGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2E7D32" />
+              <stop offset="50%" stop-color="#689F38" />
+              <stop offset="100%" stop-color="#33691E" />
+            </linearGradient>
+          </defs>
+          <g clip-path="url(#loginCircleClip)">
+            <rect width="200" height="125" fill="url(#loginSkyGrad)" />
+            <path d="M0,45 Q50,25 100,48 T200,40 L200,125 L0,125 Z" fill="#4FC3F7" opacity="0.35" />
+            <path d="M0,65 Q60,45 120,68 T200,60 L200,125 L0,125 Z" fill="#FFFFFF" opacity="0.75" />
+            <circle cx="100" cy="74" r="22" fill="url(#loginSunGrad)" />
+            <g stroke="#FBC02D" stroke-width="2.5" stroke-linecap="round">
+              <line x1="100" y1="36" x2="100" y2="46" />
+              <line x1="73" y1="47" x2="80" y2="54" />
+              <line x1="127" y1="47" x2="120" y2="54" />
+              <line x1="62" y1="74" x2="72" y2="74" />
+              <line x1="138" y1="74" x2="128" y2="74" />
+            </g>
+            <rect x="0" y="74" width="200" height="65" fill="#FFFFFF" />
+            <text x="100" y="114" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-weight="800" font-size="44" fill="#0A2558" letter-spacing="1">ACGO</text>
+            <path d="M37,104 Q48,98 59,104 Q48,108 37,104 Z" fill="#43A047" />
+            <line x1="22" y1="126" x2="43" y2="126" stroke="#2E7D32" stroke-width="1.5" />
+            <text x="100" y="130" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-weight="700" font-size="11.5" fill="#1B5E20" letter-spacing="2.2">ENERGIA SOLAR</text>
+            <line x1="157" y1="126" x2="178" y2="126" stroke="#2E7D32" stroke-width="1.5" />
+            <path d="M0,138 Q65,126 130,140 T200,134 L200,200 L0,200 Z" fill="url(#loginHillGrad)" />
+            <polygon points="15,156 175,164 195,198 5,198" fill="#0D47A1" stroke="#BBDEFB" stroke-width="1.5" />
+            <g stroke="#90CAF9" stroke-width="1" opacity="0.8">
+              <line x1="55" y1="158" x2="50" y2="198" />
+              <line x1="95" y1="160" x2="95" y2="198" />
+              <line x1="135" y1="162" x2="142" y2="198" />
+              <line x1="11" y1="172" x2="183" y2="177" />
+              <line x1="8" y1="185" x2="189" y2="189" />
+            </g>
+          </g>
+          <circle cx="100" cy="100" r="96" fill="none" stroke="#E2E8F0" stroke-width="2" />
+        </svg>
+        <h1 class="text-2xl font-extrabold text-[#0A2558]">Acesso ao Sistema</h1>
+        <p class="text-xs text-slate-500 mt-1">Insira o e-mail e a senha fornecidos pelo administrador da usina.</p>
+      </div>
+
+      <form id="loginForm" onsubmit="app.handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">E-mail de Acesso</label>
+          <input type="email" id="loginEmail" required placeholder="seu.email@exemplo.com" class="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Senha</label>
+          <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
+        </div>
+
+        <p id="loginErrorMsg" class="hidden text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-center"></p>
+
+        <button type="submit" id="loginSubmitBtn" class="w-full py-3.5 rounded-xl bg-[#0A2558] hover:bg-[#1E88E5] text-white font-bold text-sm transition shadow-md">
+          Entrar na Plataforma
+        </button>
+      </form>
+
+      <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+        <span id="loginDbBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
+          Conectando...
+        </span>
+        <span class="text-[11px] font-mono font-semibold text-slate-400">v0.1.0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- APLICAÇÃO PRINCIPAL (EXIBIDA APÓS LOGIN) -->
+  <div id="appShell" class="hidden">
+    <!-- Cabeçalho Principal -->
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+        <!-- Logo Vetorial ACGO -->
+        <div class="flex items-center gap-3 cursor-pointer" onclick="app.navigate('dashboard')">
+          <svg class="w-14 h-14 shrink-0 drop-shadow-sm" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <clipPath id="circleClip"><circle cx="100" cy="100" r="96" /></clipPath>
+              <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#0A2558" />
+                <stop offset="55%" stop-color="#1E88E5" />
+                <stop offset="100%" stop-color="#E3F2FD" />
+              </linearGradient>
+              <linearGradient id="sunGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#FFE082" />
+                <stop offset="100%" stop-color="#F9A825" />
+              </linearGradient>
+              <linearGradient id="hillGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#2E7D32" />
+                <stop offset="50%" stop-color="#689F38" />
+                <stop offset="100%" stop-color="#33691E" />
+              </linearGradient>
+            </defs>
+            <g clip-path="url(#circleClip)">
+              <rect width="200" height="125" fill="url(#skyGrad)" />
+              <path d="M0,45 Q50,25 100,48 T200,40 L200,125 L0,125 Z" fill="#4FC3F7" opacity="0.35" />
+              <path d="M0,65 Q60,45 120,68 T200,60 L200,125 L0,125 Z" fill="#FFFFFF" opacity="0.75" />
+              <circle cx="100" cy="74" r="22" fill="url(#sunGrad)" />
+              <g stroke="#FBC02D" stroke-width="2.5" stroke-linecap="round">
+                <line x1="100" y1="36" x2="100" y2="46" />
+                <line x1="73" y1="47" x2="80" y2="54" />
+                <line x1="127" y1="47" x2="120" y2="54" />
+                <line x1="62" y1="74" x2="72" y2="74" />
+                <line x1="138" y1="74" x2="128" y2="74" />
+              </g>
+              <rect x="0" y="74" width="200" height="65" fill="#FFFFFF" />
+              <text x="100" y="114" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-weight="800" font-size="44" fill="#0A2558" letter-spacing="1">ACGO</text>
+              <path d="M37,104 Q48,98 59,104 Q48,108 37,104 Z" fill="#43A047" />
+              <line x1="22" y1="126" x2="43" y2="126" stroke="#2E7D32" stroke-width="1.5" />
+              <text x="100" y="130" text-anchor="middle" font-family="Plus Jakarta Sans, sans-serif" font-weight="700" font-size="11.5" fill="#1B5E20" letter-spacing="2.2">ENERGIA SOLAR</text>
+              <line x1="157" y1="126" x2="178" y2="126" stroke="#2E7D32" stroke-width="1.5" />
+              <path d="M0,138 Q65,126 130,140 T200,134 L200,200 L0,200 Z" fill="url(#hillGrad)" />
+              <polygon points="15,156 175,164 195,198 5,198" fill="#0D47A1" stroke="#BBDEFB" stroke-width="1.5" />
+              <g stroke="#90CAF9" stroke-width="1" opacity="0.8">
+                <line x1="55" y1="158" x2="50" y2="198" />
+                <line x1="95" y1="160" x2="95" y2="198" />
+                <line x1="135" y1="162" x2="142" y2="198" />
+                <line x1="11" y1="172" x2="183" y2="177" />
+                <line x1="8" y1="185" x2="189" y2="189" />
+              </g>
+            </g>
+            <circle cx="100" cy="100" r="96" fill="none" stroke="#E2E8F0" stroke-width="2" />
+          </svg>
+          <div>
+            <span class="block text-xl font-extrabold tracking-tight text-[#0A2558] leading-none">ACGO</span>
+            <span class="block text-[11px] font-bold tracking-[0.2em] text-[#2E7D32] mt-1">ENERGIA SOLAR</span>
+          </div>
+        </div>
+
+        <!-- Navegação Principal -->
+        <nav class="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <button data-nav="dashboard" onclick="app.navigate('dashboard')" class="nav-btn px-4 py-2 rounded-lg text-sm font-semibold transition">Visão Geral</button>
+          <button data-nav="users" onclick="app.navigate('users')" class="nav-btn admin-only px-4 py-2 rounded-lg text-sm font-semibold transition">Usuários & Contas</button>
+          <button data-nav="addresses" onclick="app.navigate('addresses')" class="nav-btn admin-only px-4 py-2 rounded-lg text-sm font-semibold transition">Endereços (UCs)</button>
+          <button data-nav="invoices" onclick="app.navigate('invoices')" class="nav-btn admin-only px-4 py-2 rounded-lg text-sm font-semibold transition">Leituras & Faturas</button>
+        </nav>
+
+        <!-- Usuário Logado + Status Firebase + Sair -->
+        <div class="flex items-center gap-3">
+          <span id="dbStatusBadge" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            Verificando Banco...
+          </span>
+          <div class="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+            <span id="loggedUserBadge" class="text-xs font-bold text-[#0A2558]"></span>
+          </div>
+          <button onclick="app.logout()" class="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold transition">
+            Sair
+          </button>
+        </div>
+      </div>
+
+      <!-- Menu Mobile -->
+      <div class="md:hidden flex items-center justify-around border-t border-slate-200 bg-slate-50 px-2 py-2 text-xs">
+        <button data-nav="dashboard" onclick="app.navigate('dashboard')" class="nav-btn px-3 py-1.5 rounded-lg font-bold">Dashboard</button>
+        <button data-nav="users" onclick="app.navigate('users')" class="nav-btn admin-only px-3 py-1.5 rounded-lg font-bold">Usuários</button>
+        <button data-nav="addresses" onclick="app.navigate('addresses')" class="nav-btn admin-only px-3 py-1.5 rounded-lg font-bold">Endereços</button>
+        <button data-nav="invoices" onclick="app.navigate('invoices')" class="nav-btn admin-only px-3 py-1.5 rounded-lg font-bold">Faturas</button>
+      </div>
+    </header>
+
+    <!-- Conteúdo Dinâmico -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+      <!-- VIEW 1: VISÃO GERAL / DASHBOARD DO CLIENTE -->
+      <section id="view-dashboard" class="space-y-6">
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                <span id="dashRoleBadge" class="inline-block px-2.5 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-blue-100 text-[#0A2558]">Administrador</span>
+                <!-- TAG COLORIDA DO ENDEREÇO EM EXIBIÇÃO -->
+                <span id="dashActiveAddressTag" class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold border">
+                  <span id="dashActiveAddressDot" class="w-2.5 h-2.5 rounded-full"></span>
+                  <span id="dashActiveAddressLabel">Todos os endereços</span>
+                </span>
+              </div>
+              <h1 id="dashTitle" class="text-2xl font-extrabold text-slate-900">Painel Consolidado da Usina</h1>
+              <p id="dashSubtitle" class="text-sm text-slate-500 mt-0.5">Acompanhe o consumo medido, faturamento ACGO (R$ 0,75/kWh) e economia líquida frente à Neoenergia.</p>
+            </div>
+          </div>
+
+          <!-- BARRA DE FILTROS: CLIENTE, ENDEREÇO E PERÍODO -->
+          <div class="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+            <div id="userFilterWrapper" class="lg:col-span-3">
+              <label for="dashUserSelect" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Cliente</label>
+              <select id="dashUserSelect" onchange="app.renderDashboard()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none"></select>
+            </div>
+
+            <div class="lg:col-span-4">
+              <label for="dashAddressSelect" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Endereço / Unidade Consumidora</label>
+              <select id="dashAddressSelect" onchange="app.renderDashboard()" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none">
+                <option value="all">Todos os endereços</option>
+              </select>
+            </div>
+
+            <div class="lg:col-span-2">
+              <label for="dashDateStart" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Período De</label>
+              <input type="text" id="dashDateStart" maxlength="10" oninput="app.maskDate(this); app.renderDashboard()" placeholder="dd/mm/aaaa" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-800 bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
+            </div>
+
+            <div class="lg:col-span-2">
+              <label for="dashDateEnd" class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Período Até</label>
+              <input type="text" id="dashDateEnd" maxlength="10" oninput="app.maskDate(this); app.renderDashboard()" placeholder="dd/mm/aaaa" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-800 bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
+            </div>
+
+            <div class="lg:col-span-1">
+              <button type="button" onclick="app.clearDashboardPeriod()" title="Limpar filtro de datas" class="w-full py-2 px-3 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition">
+                Limpar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Consumo Total Medido</p>
+            <p id="kpiConsumption" class="text-2xl font-extrabold text-[#0A2558] mt-2">0 kWh</p>
+            <p class="text-xs text-slate-500 mt-1">Diferença entre leitura final e inicial</p>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Valor Faturado ACGO</p>
+            <p id="kpiAcgoTotal" class="text-2xl font-extrabold text-[#1E88E5] mt-2">R$ 0,00</p>
+            <p class="text-xs text-slate-500 mt-1">Energia ACGO + Taxa − Desc. Fio B</p>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Custo Estimado Neoenergia</p>
+            <p id="kpiNeoenergiaTotal" class="text-2xl font-extrabold text-slate-700 mt-2">R$ 0,00</p>
+            <p class="text-xs text-slate-500 mt-1">Tarifa cheia concessionária + Taxa</p>
+          </div>
+          <div class="bg-gradient-to-br from-[#2E7D32] to-[#1B5E20] p-5 rounded-2xl text-white shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-emerald-100">Economia Gerada</p>
+            <p id="kpiSavings" class="text-2xl font-extrabold mt-2">R$ 0,00</p>
+            <p id="kpiSavingsPercent" class="text-xs text-emerald-100 mt-1">0% de redução na conta</p>
+          </div>
+        </div>
+
+        <!-- Gráficos -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 class="text-base font-bold text-slate-900">Consumo por Período (kWh)</h3>
+              <span id="chart1AddressBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"></span>
+            </div>
+            <div class="h-72"><canvas id="chartConsumption"></canvas></div>
+          </div>
+          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 class="text-base font-bold text-slate-900">Valor Faturado ACGO vs. Neoenergia (R$)</h3>
+              <span id="chart2AddressBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"></span>
+            </div>
+            <div class="h-72"><canvas id="chartFinancial"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Histórico do Cliente Selecionado -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-6 border-b border-slate-200 flex items-center justify-between">
+            <h3 class="text-base font-bold text-slate-900">Detalhamento das Leituras e Faturas do Período</h3>
+            <span id="dashPeriodSummaryBadge" class="text-xs font-semibold text-slate-500"></span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
+                  <th class="py-3.5 px-4 font-bold">Período / Data</th>
+                  <th class="py-3.5 px-4 font-bold">Endereço</th>
+                  <th class="py-3.5 px-4 font-bold">Leitura (Ini → Fim)</th>
+                  <th class="py-3.5 px-4 font-bold">Consumo</th>
+                  <th class="py-3.5 px-4 font-bold">Energia ACGO</th>
+                  <th class="py-3.5 px-4 font-bold">Taxa Neoenergia</th>
+                  <th class="py-3.5 px-4 font-bold">Desc. Fio B</th>
+                  <th class="py-3.5 px-4 font-bold">Total ACGO</th>
+                  <th class="py-3.5 px-4 font-bold">Economia</th>
+                </tr>
+              </thead>
+              <tbody id="dashInvoicesTable" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: CADASTRO E GESTÃO DE USUÁRIOS -->
+      <section id="view-users" class="hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div class="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <h2 id="userFormTitle" class="text-lg font-extrabold text-[#0A2558]">Cadastrar Novo Usuário</h2>
+              <button type="button" onclick="app.resetUserForm()" class="text-xs font-semibold text-slate-500 hover:text-slate-800">Limpar</button>
+            </div>
+            <form id="userForm" onsubmit="app.saveUser(event)" class="space-y-4">
+              <input type="hidden" id="userId" />
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nome Completo *</label>
+                <input type="text" id="userName" required placeholder="Ex: João Carlos da Silva" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">E-mail *</label>
+                  <input type="email" id="userEmail" required placeholder="cliente@email.com" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Senha de Acesso *</label>
+                  <input type="text" id="userPassword" required placeholder="Senha fornecida ao usuário" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-[#1E88E5] focus:outline-none" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Perfil de Acesso *</label>
+                <select id="userRole" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold bg-white focus:ring-2 focus:ring-[#1E88E5] focus:outline-none">
+                  <option value="comum">Comum (Cliente)</option>
+                  <option value="administrador">Administrador</option>
+                </select>
+              </div>
+
+              <!-- Vincular Endereços Existentes -->
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">Vincular Endereços Existentes</label>
+                <div id="userAddressesChecklist" class="max-h-36 overflow-y-auto space-y-2 p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm"></div>
+              </div>
+
+              <!-- Cadastrar Novo Endereço Direto no Cadastro do Usuário -->
+              <div class="p-4 rounded-xl border border-dashed border-[#1E88E5] bg-blue-50/40 space-y-3">
+                <p class="text-xs font-extrabold text-[#0A2558] uppercase">+ Adicionar Novo Endereço para este Usuário (Opcional)</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div class="sm:col-span-2">
+                    <input type="text" id="inlineAddrLogradouro" placeholder="Logradouro (Rua, Av...)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white" />
+                  </div>
+                  <div>
+                    <input type="text" id="inlineAddrNumero" placeholder="Número" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white" />
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <input type="text" id="inlineAddrBairro" placeholder="Bairro" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white" />
+                  </div>
+                  <div>
+                    <input type="text" id="inlineAddrCep" maxlength="9" oninput="app.maskCep(this)" placeholder="CEP 00000-000" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white" />
+                  </div>
+                  <div>
+                    <input type="text" id="inlineAddrCidade" placeholder="Cidade" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white" />
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" class="w-full py-3 rounded-xl bg-[#0A2558] hover:bg-[#1E88E5] text-white font-bold text-sm transition shadow-sm">
+                Salvar Usuário no Banco
+              </button>
+            </form>
+          </div>
+
+          <!-- Lista de Usuários -->
+          <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-200">
+              <h2 class="text-lg font-extrabold text-slate-900">Usuários Cadastrados</h2>
+              <p class="text-xs text-slate-500 mt-0.5">Clique no nome do usuário para abrir o seu dashboard individual.</p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
+                    <th class="py-3.5 px-4 font-bold">Usuário / Senha</th>
+                    <th class="py-3.5 px-4 font-bold">Perfil</th>
+                    <th class="py-3.5 px-4 font-bold">Endereços Vinculados</th>
+                    <th class="py-3.5 px-4 font-bold text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTableBody" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: ENDEREÇOS SEPARADOS -->
+      <section id="view-addresses" class="hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div class="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <h2 id="addressFormTitle" class="text-lg font-extrabold text-[#0A2558]">Cadastrar / Editar Endereço</h2>
+              <button type="button" onclick="app.resetAddressForm()" class="text-xs font-semibold text-slate-500 hover:text-slate-800">Limpar</button>
+            </div>
+            <form id="addressForm" onsubmit="app.saveAddress(event)" class="space-y-4">
+              <input type="hidden" id="addressId" />
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Logradouro *</label>
+                <input type="text" id="addrLogradouro" required placeholder="Rua / Avenida / Travessa" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Número *</label>
+                  <input type="text" id="addrNumero" required placeholder="Ex: 120A" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">CEP *</label>
+                  <input type="text" id="addrCep" required maxlength="9" oninput="app.maskCep(this)" placeholder="00000-000" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Bairro *</label>
+                  <input type="text" id="addrBairro" required placeholder="Ex: Boa Viagem" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Cidade *</label>
+                  <input type="text" id="addrCidade" required placeholder="Ex: Recife" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+              </div>
+              <button type="submit" class="w-full py-3 rounded-xl bg-[#0A2558] hover:bg-[#1E88E5] text-white font-bold text-sm transition">
+                Salvar Endereço
+              </button>
+            </form>
+          </div>
+
+          <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-200">
+              <h2 class="text-lg font-extrabold text-slate-900">Endereços (Unidades Consumidoras)</h2>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
+                    <th class="py-3.5 px-4 font-bold">Logradouro / Nº</th>
+                    <th class="py-3.5 px-4 font-bold">Bairro / Cidade</th>
+                    <th class="py-3.5 px-4 font-bold">CEP</th>
+                    <th class="py-3.5 px-4 font-bold text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="addressesTableBody" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: LANÇAMENTO E EDIÇÃO DE FATURAS -->
+      <section id="view-invoices" class="hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div class="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <h2 id="invoiceFormTitle" class="text-lg font-extrabold text-[#0A2558]">Lançar / Editar Leitura & Fatura</h2>
+              <button type="button" onclick="app.resetInvoiceForm()" class="text-xs font-semibold text-slate-500 hover:text-slate-800">Limpar</button>
+            </div>
+            <form id="invoiceForm" onsubmit="app.saveInvoice(event)" class="space-y-4">
+              <input type="hidden" id="invoiceId" />
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Endereço da Unidade *</label>
+                <select id="invAddressId" required onchange="app.recalcInvoicePreview()" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white font-semibold"></select>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Data Leitura (dd/mm/aaaa) *</label>
+                  <input type="text" id="invDate" required maxlength="10" oninput="app.maskDate(this)" placeholder="dd/mm/aaaa" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Tarifa Neoenergia (R$/kWh)</label>
+                  <input type="text" id="invNeoRate" value="R$ 0,98" oninput="app.maskCurrency(this); app.recalcInvoicePreview()" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Leitura Inicial (kWh) *</label>
+                  <input type="number" id="invInitialReading" required min="0" step="1" oninput="app.recalcInvoicePreview()" placeholder="Ex: 10500" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Leitura Final (kWh) *</label>
+                  <input type="number" id="invFinalReading" required min="0" step="1" oninput="app.recalcInvoicePreview()" placeholder="Ex: 11120" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Taxa Neoenergia (R$) *</label>
+                  <input type="text" id="invNeoFee" required value="R$ 0,00" oninput="app.maskCurrency(this); app.recalcInvoicePreview()" placeholder="R$ 0.000,00" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Desconto Fio B (R$) *</label>
+                  <input type="text" id="invFioBDiscount" required value="R$ 0,00" oninput="app.maskCurrency(this); app.recalcInvoicePreview()" placeholder="R$ 0.000,00" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm" />
+                </div>
+              </div>
+
+              <!-- Prévia Automática Detalhada do Cálculo -->
+              <div class="p-4 rounded-xl bg-slate-900 text-white space-y-2 text-xs">
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Consumo Apurado:</span>
+                  <span id="prevConsumption" class="font-bold">0 kWh</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Energia ACGO (R$ 0,75/kWh):</span>
+                  <span id="prevEnergyCost" class="font-bold text-sky-300">R$ 0,00</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Taxa NEOENERGIA:</span>
+                  <span id="prevNeoFee" class="font-bold text-slate-200">+ R$ 0,00</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Desconto Fio B:</span>
+                  <span id="prevFioBDiscount" class="font-bold text-emerald-300">- R$ 0,00</span>
+                </div>
+                <div class="flex justify-between border-t border-slate-700 pt-2 text-sm">
+                  <span class="font-bold text-emerald-400">Total Fatura ACGO:</span>
+                  <span id="prevTotalAcgo" class="font-extrabold text-emerald-400">R$ 0,00</span>
+                </div>
+                <div class="flex justify-between text-amber-300 pt-0.5">
+                  <span>Economia vs. Neoenergia:</span>
+                  <span id="prevSavings" class="font-bold">R$ 0,00</span>
+                </div>
+              </div>
+
+              <button type="submit" class="w-full py-3 rounded-xl bg-[#2E7D32] hover:bg-[#1B5E20] text-white font-bold text-sm transition">
+                Salvar Fatura
+              </button>
+            </form>
+          </div>
+
+          <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-200">
+              <h2 class="text-lg font-extrabold text-slate-900">Faturas Lançadas</h2>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
+                    <th class="py-3.5 px-4 font-bold">Data</th>
+                    <th class="py-3.5 px-4 font-bold">Endereço</th>
+                    <th class="py-3.5 px-4 font-bold">Consumo</th>
+                    <th class="py-3.5 px-4 font-bold">Taxa Neoenergia</th>
+                    <th class="py-3.5 px-4 font-bold">Total ACGO</th>
+                    <th class="py-3.5 px-4 font-bold text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="invoicesTableBody" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Firebase SDK (Compat v10) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <!-- Scripts da Aplicação -->
+  <script src="js/firebase-config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

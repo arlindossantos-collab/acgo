@@ -1,9 +1,11 @@
 const ACGO_TARIFF = 0.75; // R$ 0,75 por kWh
 
+const MONTH_ABBR = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+
 // Paleta de cores distintas para diferenciar cada endereço nos gráficos e tags
 const ADDRESS_PALETTE = [
-  { hex: '#1E88E5', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8' }, // Azul Solar
   { hex: '#2E7D32', bgSoft: '#ECFDF5', border: '#A7F3D0', text: '#047857' }, // Verde Esmeralda
+  { hex: '#1E88E5', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8' }, // Azul Solar
   { hex: '#D97706', bgSoft: '#FFFBEB', border: '#FDE68A', text: '#B45309' }, // Dourado Âmbar
   { hex: '#7C3AED', bgSoft: '#F5F3FF', border: '#DDD6FE', text: '#6D28D9' }, // Violeta
   { hex: '#0D9488', bgSoft: '#F0FDFA', border: '#99F6E4', text: '#0F766E' }, // Turquesa
@@ -24,8 +26,12 @@ const app = {
 
   async init() {
     this.updateDbBadge();
-    await this.loadAllData();
-    await this.seedInitialDataIfEmpty();
+    try {
+      await this.loadAllData();
+      await this.seedInitialDataIfEmpty();
+    } catch (err) {
+      console.error('Erro na carga inicial:', err);
+    }
 
     const savedUserId = sessionStorage.getItem('acgo_logged_user_id');
     const validUser = this.state.users.find(u => u.id === savedUserId);
@@ -60,7 +66,7 @@ const app = {
     }
   },
 
-  // --- CORES POR ENDEREÇO ---
+  // --- CORES E FORMATAÇÃO DE MÊS ---
   getAddressColor(addressId) {
     if (!addressId || addressId === 'all') {
       return { hex: '#0A2558', bgSoft: '#EFF6FF', border: '#BFDBFE', text: '#0A2558' };
@@ -68,6 +74,15 @@ const app = {
     const idx = this.state.addresses.findIndex(a => a.id === addressId);
     const safeIdx = idx >= 0 ? idx : 0;
     return ADDRESS_PALETTE[safeIdx % ADDRESS_PALETTE.length];
+  },
+
+  formatMonthYear(dateStr) {
+    const parts = (dateStr || '').split('/');
+    if (parts.length !== 3) return dateStr;
+    const monthIdx = parseInt(parts[1], 10) - 1;
+    const year = parts[2];
+    const abbr = MONTH_ABBR[monthIdx] || parts[1];
+    return `${abbr}/${year}`;
   },
 
   // --- AUTENTICAÇÃO E CONTROLE DE ACESSO ---
@@ -78,15 +93,41 @@ const app = {
 
   async handleLogin(e) {
     e.preventDefault();
-    const emailInput = document.getElementById('loginEmail').value.trim().toLowerCase();
-    const passInput = document.getElementById('loginPassword').value;
+    const emailInput = String(document.getElementById('loginEmail').value || '').trim().toLowerCase();
+    const passInput = String(document.getElementById('loginPassword').value || '').trim();
     const errorEl = document.getElementById('loginErrorMsg');
+    const submitBtn = document.getElementById('loginSubmitBtn');
 
-    await this.loadAllData();
+    errorEl.classList.add('hidden');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Verificando credenciais...';
+    }
 
-    const matchedUser = this.state.users.find(
-      u => (u.email || '').trim().toLowerCase() === emailInput && (u.password || '') === passInput
-    );
+    try {
+      await this.loadAllData();
+      await this.seedInitialDataIfEmpty();
+    } catch (err) {
+      console.error('Erro ao consultar usuários:', err);
+      errorEl.textContent = `Erro ao conectar ao banco: ${err.message || 'verifique as permissões do Firestore.'}`;
+      errorEl.classList.remove('hidden');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Entrar na Plataforma';
+      }
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Entrar na Plataforma';
+    }
+
+    const matchedUser = this.state.users.find(u => {
+      const dbEmail = String(u.email ?? '').trim().toLowerCase();
+      const dbPass = String(u.password ?? '').trim();
+      return dbEmail === emailInput && dbPass === passInput && passInput.length > 0;
+    });
 
     if (!matchedUser) {
       errorEl.textContent = 'E-mail ou senha inválidos. Verifique com o administrador.';
@@ -94,7 +135,6 @@ const app = {
       return;
     }
 
-    errorEl.classList.add('hidden');
     document.getElementById('loginForm').reset();
     sessionStorage.setItem('acgo_logged_user_id', matchedUser.id);
     this.enterApp(matchedUser.id);
@@ -103,6 +143,11 @@ const app = {
   enterApp(userId) {
     this.state.activeSessionUserId = userId;
     const user = this.getActiveUser();
+    if (!user) {
+      this.showLoginScreen();
+      return;
+    }
+
     document.getElementById('loggedUserBadge').textContent =
       `${user.name} (${user.role === 'administrador' ? 'Admin' : 'Comum'})`;
 
@@ -390,7 +435,6 @@ const app = {
     const finalAddrFilter = dashAddressSelect.value;
     this.updateAddressBadges(finalAddrFilter, availableAddrs);
 
-    // Filtro de período (datas válidas dd/mm/aaaa)
     const startStr = (document.getElementById('dashDateStart')?.value || '').trim();
     const endStr = (document.getElementById('dashDateEnd')?.value || '').trim();
     const startTs = this.isValidDate(startStr) ? this.dateToTimestamp(startStr) : null;
@@ -459,7 +503,7 @@ const app = {
     document.getElementById('dashInvoicesTable').innerHTML = rowsHtml ||
       `<tr><td colspan="9" class="py-8 text-center text-slate-400">Nenhuma leitura lançada para o endereço ou período selecionado.</td></tr>`;
 
-    this.renderCharts(filteredInvoices, finalAddrFilter);
+    this.renderCharts(filteredInvoices);
   },
 
   dateToTimestamp(dateStr) {
@@ -481,82 +525,182 @@ const app = {
     return { consumption, energyCost, neoFee, fioBDiscount, acgoTotal, neoTotal, savings };
   },
 
-  renderCharts(invoices, selectedAddrFilter) {
-    const labels = invoices.map(i => {
-      if (selectedAddrFilter === 'all') {
-        const addr = this.state.addresses.find(a => a.id === i.addressId);
-        return addr ? `${i.date} (${addr.logradouro}, ${addr.numero})` : i.date;
-      }
-      return i.date;
-    });
-
-    const kwhData = invoices.map(i => this.calculateInvoice(i).consumption);
-    const acgoData = invoices.map(i => this.calculateInvoice(i).acgoTotal);
-    const neoData = invoices.map(i => this.calculateInvoice(i).neoTotal);
-
-    // Cores dinâmicas por endereço
-    const barColors = invoices.map(i => this.getAddressColor(i.addressId).hex);
-    const activeColorHex = selectedAddrFilter !== 'all'
-      ? this.getAddressColor(selectedAddrFilter).hex
-      : '#2E7D32';
-
-    const selectedAddrObj = this.state.addresses.find(a => a.id === selectedAddrFilter);
-    const datasetSuffix = selectedAddrObj
-      ? ` — ${selectedAddrObj.logradouro}, ${selectedAddrObj.numero}`
-      : ' — Todos os Endereços';
-
+  renderCharts(invoices) {
     if (this.state.charts.consumption) this.state.charts.consumption.destroy();
     if (this.state.charts.financial) this.state.charts.financial.destroy();
+
+    const presentAddressIds = [...new Set(invoices.map(i => i.addressId))].sort((a, b) => {
+      return this.state.addresses.findIndex(x => x.id === a) - this.state.addresses.findIndex(x => x.id === b);
+    });
+
+    // GRÁFICO 1 (BARRAS): Agrupado por cor/endereço lado a lado, com rótulo curto MMM/AAAA abaixo
+    const groupedItems = [];
+    presentAddressIds.forEach(addrId => {
+      const addrInvoices = invoices
+        .filter(i => i.addressId === addrId)
+        .sort((a, b) => this.dateToTimestamp(a.date) - this.dateToTimestamp(b.date));
+      addrInvoices.forEach(inv => groupedItems.push(inv));
+    });
+
+    const barLabels = groupedItems.map(inv => this.formatMonthYear(inv.date));
+    const barValues = groupedItems.map(inv => this.calculateInvoice(inv).consumption);
+    const barColors = groupedItems.map(inv => this.getAddressColor(inv.addressId).hex);
+
+    const consumptionLegendDatasets = presentAddressIds.map((addrId, index) => {
+      const addr = this.state.addresses.find(a => a.id === addrId);
+      const color = this.getAddressColor(addrId).hex;
+      const addrName = addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço';
+
+      return {
+        label: addrName,
+        data: index === 0 ? barValues : [],
+        backgroundColor: index === 0 ? barColors : color,
+        borderColor: color,
+        borderRadius: 6,
+        grouped: false
+      };
+    });
 
     this.state.charts.consumption = new Chart(document.getElementById('chartConsumption'), {
       type: 'bar',
       data: {
-        labels,
-        datasets: [{
-          label: `Consumo (kWh)${datasetSuffix}`,
-          data: kwhData,
-          backgroundColor: barColors.length ? barColors : activeColorHex,
-          borderRadius: 8
+        labels: barLabels,
+        datasets: consumptionLegendDatasets.length ? consumptionLegendDatasets : [{
+          label: 'Sem dados',
+          data: [],
+          backgroundColor: '#1E88E5'
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        scales: {
+          x: {
+            ticks: {
+              maxRotation: 0,
+              autoSkip: false,
+              font: { weight: 'bold', size: 11 }
+            }
+          }
+        },
         plugins: {
-          legend: { display: true }
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              usePointStyle: true,
+              pointStyle: 'rectRounded',
+              font: { size: 11, weight: '600' },
+              generateLabels: () => presentAddressIds.map(addrId => {
+                const addr = this.state.addresses.find(a => a.id === addrId);
+                const color = this.getAddressColor(addrId).hex;
+                return {
+                  text: addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço',
+                  fillStyle: color,
+                  strokeStyle: color,
+                  lineWidth: 0,
+                  hidden: false
+                };
+              })
+            }
+          },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const idx = items[0]?.dataIndex ?? 0;
+                const inv = groupedItems[idx];
+                if (!inv) return '';
+                const addr = this.state.addresses.find(a => a.id === inv.addressId);
+                return `${this.formatMonthYear(inv.date)} — ${addr ? `${addr.logradouro}, ${addr.numero}` : ''}`;
+              },
+              label: (ctx) => ` Consumo: ${ctx.parsed.y} kWh`
+            }
+          }
         }
       }
     });
 
+    // GRÁFICO 2 (LINHAS): Meses curtos MMM/AAAA no eixo X e uma série colorida por endereço + Neoenergia
+    const uniqueMonthKeys = [];
+    const monthTimestampMap = {};
+    invoices.forEach(inv => {
+      const mKey = this.formatMonthYear(inv.date);
+      if (!monthTimestampMap[mKey]) {
+        monthTimestampMap[mKey] = this.dateToTimestamp(inv.date);
+        uniqueMonthKeys.push(mKey);
+      }
+    });
+    uniqueMonthKeys.sort((a, b) => monthTimestampMap[a] - monthTimestampMap[b]);
+
+    const financialDatasets = presentAddressIds.map(addrId => {
+      const addr = this.state.addresses.find(a => a.id === addrId);
+      const color = this.getAddressColor(addrId).hex;
+      const addrName = addr ? `${addr.logradouro}, ${addr.numero}` : 'Endereço';
+
+      const seriesData = uniqueMonthKeys.map(mKey => {
+        const match = invoices.find(i => i.addressId === addrId && this.formatMonthYear(i.date) === mKey);
+        return match ? this.calculateInvoice(match).acgoTotal : null;
+      });
+
+      return {
+        label: `ACGO — ${addrName}`,
+        data: seriesData,
+        borderColor: color,
+        backgroundColor: color,
+        pointBackgroundColor: color,
+        pointRadius: 5,
+        borderWidth: 3,
+        spanGaps: true,
+        tension: 0.3
+      };
+    });
+
+    if (uniqueMonthKeys.length > 0) {
+      const neoSeriesData = uniqueMonthKeys.map(mKey => {
+        const monthInvs = invoices.filter(i => this.formatMonthYear(i.date) === mKey);
+        if (!monthInvs.length) return null;
+        const avgNeo = monthInvs.reduce((acc, item) => acc + this.calculateInvoice(item).neoTotal, 0) / monthInvs.length;
+        return Number(avgNeo.toFixed(2));
+      });
+
+      financialDatasets.push({
+        label: 'Neoenergia Sem Solar (Média R$)',
+        data: neoSeriesData,
+        borderColor: '#0A2558',
+        backgroundColor: '#0A2558',
+        borderDash: [5, 5],
+        pointRadius: 4,
+        tension: 0.3
+      });
+    }
+
     this.state.charts.financial = new Chart(document.getElementById('chartFinancial'), {
       type: 'line',
       data: {
-        labels,
-        datasets: [
-          {
-            label: `Fatura ACGO (R$)${datasetSuffix}`,
-            data: acgoData,
-            borderColor: activeColorHex,
-            backgroundColor: activeColorHex,
-            pointBackgroundColor: barColors.length ? barColors : activeColorHex,
-            pointRadius: 5,
-            borderWidth: 3,
-            tension: 0.3
-          },
-          {
-            label: 'Neoenergia Sem Solar (R$)',
-            data: neoData,
-            borderColor: '#0A2558',
-            backgroundColor: '#0A2558',
-            borderDash: [5, 5],
-            pointRadius: 4,
-            tension: 0.3
-          }
-        ]
+        labels: uniqueMonthKeys,
+        datasets: financialDatasets
       },
       options: {
         responsive: true,
-        maintainAspectRatio: false
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            ticks: {
+              maxRotation: 0,
+              font: { weight: 'bold', size: 11 }
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              usePointStyle: true,
+              font: { size: 11, weight: '600' }
+            }
+          }
+        }
       }
     });
   },
@@ -628,7 +772,7 @@ const app = {
     await this.saveDocument('users', id, {
       name: document.getElementById('userName').value.trim(),
       email: document.getElementById('userEmail').value.trim(),
-      password: document.getElementById('userPassword').value.trim(),
+      password: String(document.getElementById('userPassword').value || '').trim(),
       role: document.getElementById('userRole').value,
       addressIds: [...new Set(selectedAddressIds)]
     });
