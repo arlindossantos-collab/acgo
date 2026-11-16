@@ -14,19 +14,87 @@ const app = {
     this.updateDbBadge();
     await this.loadAllData();
     await this.seedInitialDataIfEmpty();
-    this.renderSessionSelector();
-    this.navigate('dashboard');
+
+    const savedUserId = sessionStorage.getItem('acgo_logged_user_id');
+    const validUser = this.state.users.find(u => u.id === savedUserId);
+    if (validUser) {
+      this.enterApp(validUser.id);
+    } else {
+      this.showLoginScreen();
+    }
   },
 
   updateDbBadge() {
     const badge = document.getElementById('dbStatusBadge');
+    const loginBadge = document.getElementById('loginDbBadge');
     if (isFirebaseConnected) {
-      badge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800';
-      badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Firebase Conectado';
+      if (badge) {
+        badge.className = 'hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800';
+        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Firebase Conectado';
+      }
+      if (loginBadge) {
+        loginBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800';
+        loginBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Banco Firebase Conectado';
+      }
     } else {
-      badge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800';
-      badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500"></span> Modo Local (Configure Firebase)';
+      if (badge) {
+        badge.className = 'hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800';
+        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500"></span> Modo Local (Configure Firebase)';
+      }
+      if (loginBadge) {
+        loginBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800';
+        loginBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-500"></span> Modo Local Ativo';
+      }
     }
+  },
+
+  // --- AUTENTICAÇÃO E CONTROLE DE ACESSO ---
+  showLoginScreen() {
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('appShell').classList.add('hidden');
+  },
+
+  async handleLogin(e) {
+    e.preventDefault();
+    const emailInput = document.getElementById('loginEmail').value.trim().toLowerCase();
+    const passInput = document.getElementById('loginPassword').value;
+    const errorEl = document.getElementById('loginErrorMsg');
+
+    // Recarrega usuários do banco antes de autenticar para garantir senhas atualizadas
+    await this.loadAllData();
+
+    const matchedUser = this.state.users.find(
+      u => (u.email || '').trim().toLowerCase() === emailInput && (u.password || '') === passInput
+    );
+
+    if (!matchedUser) {
+      errorEl.textContent = 'E-mail ou senha inválidos. Verifique com o administrador.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    errorEl.classList.add('hidden');
+    document.getElementById('loginForm').reset();
+    sessionStorage.setItem('acgo_logged_user_id', matchedUser.id);
+    this.enterApp(matchedUser.id);
+  },
+
+  enterApp(userId) {
+    this.state.activeSessionUserId = userId;
+    const user = this.getActiveUser();
+    document.getElementById('loggedUserBadge').textContent =
+      `${user.name} (${user.role === 'administrador' ? 'Admin' : 'Comum'})`;
+
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('appShell').classList.remove('hidden');
+    this.applyRolePermissions();
+    this.navigate('dashboard');
+  },
+
+  logout() {
+    sessionStorage.removeItem('acgo_logged_user_id');
+    this.state.activeSessionUserId = null;
+    this.showLoginScreen();
   },
 
   // --- PERSISTÊNCIA (FIREBASE + FALLBACK LOCALSTORAGE) ---
@@ -95,6 +163,7 @@ const app = {
     await this.saveDocument('users', null, {
       name: 'Administrador Usina ACGO',
       email: 'admin@acgosolar.com.br',
+      password: 'admin123',
       role: 'administrador',
       addressIds: []
     });
@@ -102,6 +171,7 @@ const app = {
     await this.saveDocument('users', null, {
       name: 'Carlos Eduardo Mendes',
       email: 'carlos.mendes@email.com',
+      password: '123456',
       role: 'comum',
       addressIds: [addr1Id, addr2Id]
     });
@@ -173,26 +243,7 @@ const app = {
     input.value = v.length > 5 ? `${v.slice(0, 5)}-${v.slice(5)}` : v;
   },
 
-  // --- SESSÃO & NAVEGAÇÃO ---
-  renderSessionSelector() {
-    const sel = document.getElementById('activeSessionSelect');
-    sel.innerHTML = this.state.users.map(u =>
-      `<option value="${u.id}">${u.name} (${u.role === 'administrador' ? 'Admin' : 'Comum'})</option>`
-    ).join('');
-
-    if (!this.state.activeSessionUserId && this.state.users.length > 0) {
-      this.state.activeSessionUserId = this.state.users[0].id;
-    }
-    sel.value = this.state.activeSessionUserId;
-    this.applyRolePermissions();
-  },
-
-  switchSession(userId) {
-    this.state.activeSessionUserId = userId;
-    this.applyRolePermissions();
-    this.navigate('dashboard');
-  },
-
+  // --- NAVEGAÇÃO ---
   getActiveUser() {
     return this.state.users.find(u => u.id === this.state.activeSessionUserId) || this.state.users[0];
   },
@@ -302,6 +353,7 @@ const app = {
           <td class="py-3.5 px-4 text-slate-600">${addrLabel}</td>
           <td class="py-3.5 px-4 text-slate-600">${inv.initialReading} → ${inv.finalReading}</td>
           <td class="py-3.5 px-4 font-bold text-[#0A2558]">${calc.consumption} kWh</td>
+          <td class="py-3.5 px-4 text-slate-700 font-medium">${this.formatCurrency(calc.energyCost)}</td>
           <td class="py-3.5 px-4 text-slate-600">${this.formatCurrency(inv.neoFee)}</td>
           <td class="py-3.5 px-4 text-emerald-700 font-medium">- ${this.formatCurrency(inv.fioBDiscount)}</td>
           <td class="py-3.5 px-4 font-extrabold text-[#1E88E5]">${this.formatCurrency(calc.acgoTotal)}</td>
@@ -320,7 +372,7 @@ const app = {
     document.getElementById('kpiSavingsPercent').textContent = `${savingsPct}% de redução frente à concessionária`;
 
     document.getElementById('dashInvoicesTable').innerHTML = rowsHtml ||
-      `<tr><td colspan="8" class="py-8 text-center text-slate-400">Nenhuma leitura lançada para este filtro.</td></tr>`;
+      `<tr><td colspan="9" class="py-8 text-center text-slate-400">Nenhuma leitura lançada para este filtro.</td></tr>`;
 
     this.renderCharts(filteredInvoices);
   },
@@ -337,11 +389,12 @@ const app = {
     const fioBDiscount = Number(inv.fioBDiscount || 0);
     const neoRate = Number(inv.neoRate || 0.98);
 
+    // Total Fatura ACGO = Energia ACGO + Taxa Neoenergia - Desconto Fio B
     const acgoTotal = Math.max(0, energyCost + neoFee - fioBDiscount);
     const neoTotal = (consumption * neoRate) + neoFee;
     const savings = neoTotal - acgoTotal;
 
-    return { consumption, energyCost, acgoTotal, neoTotal, savings };
+    return { consumption, energyCost, neoFee, fioBDiscount, acgoTotal, neoTotal, savings };
   },
 
   renderCharts(invoices) {
@@ -405,6 +458,7 @@ const app = {
           <td class="py-3.5 px-4">
             <button onclick="app.openUserDashboard('${u.id}')" class="font-bold text-[#0A2558] hover:underline text-left">${u.name}</button>
             <span class="block text-xs text-slate-500">${u.email}</span>
+            <span class="block text-[11px] font-mono text-slate-400 mt-0.5">Senha: ${u.password || '—'}</span>
           </td>
           <td class="py-3.5 px-4">
             <span class="px-2.5 py-1 rounded-full text-xs font-bold ${u.role === 'administrador' ? 'bg-blue-100 text-[#0A2558]' : 'bg-emerald-100 text-emerald-800'}">
@@ -426,7 +480,6 @@ const app = {
     const id = document.getElementById('userId').value || null;
     const selectedAddressIds = Array.from(document.querySelectorAll('input[name="userAddrCheck"]:checked')).map(cb => cb.value);
 
-    // Se preencheu endereço inline, cria automaticamente
     const inlineLog = document.getElementById('inlineAddrLogradouro').value.trim();
     const inlineNum = document.getElementById('inlineAddrNumero').value.trim();
     const inlineBairro = document.getElementById('inlineAddrBairro').value.trim();
@@ -447,13 +500,13 @@ const app = {
     await this.saveDocument('users', id, {
       name: document.getElementById('userName').value.trim(),
       email: document.getElementById('userEmail').value.trim(),
+      password: document.getElementById('userPassword').value.trim(),
       role: document.getElementById('userRole').value,
       addressIds: [...new Set(selectedAddressIds)]
     });
 
     await this.loadAllData();
     this.resetUserForm();
-    this.renderSessionSelector();
     this.renderUsersView();
   },
 
@@ -464,6 +517,7 @@ const app = {
     document.getElementById('userId').value = u.id;
     document.getElementById('userName').value = u.name;
     document.getElementById('userEmail').value = u.email;
+    document.getElementById('userPassword').value = u.password || '';
     document.getElementById('userRole').value = u.role;
     document.querySelectorAll('input[name="userAddrCheck"]').forEach(cb => {
       cb.checked = (u.addressIds || []).includes(cb.value);
@@ -471,10 +525,13 @@ const app = {
   },
 
   async removeUser(id) {
+    if (id === this.state.activeSessionUserId) {
+      alert('Você não pode excluir o usuário que está logado no momento.');
+      return;
+    }
     if (!confirm('Deseja remover este usuário?')) return;
     await this.deleteDocument('users', id);
     await this.loadAllData();
-    this.renderSessionSelector();
     this.renderUsersView();
   },
 
@@ -561,6 +618,7 @@ const app = {
           <td class="py-3.5 px-4 font-semibold">${inv.date}</td>
           <td class="py-3.5 px-4 text-slate-600">${addr ? `${addr.logradouro}, ${addr.numero}` : 'N/A'}</td>
           <td class="py-3.5 px-4 font-bold text-[#0A2558]">${calc.consumption} kWh</td>
+          <td class="py-3.5 px-4 text-slate-600">${this.formatCurrency(calc.neoFee)}</td>
           <td class="py-3.5 px-4 font-extrabold text-[#2E7D32]">${this.formatCurrency(calc.acgoTotal)}</td>
           <td class="py-3.5 px-4 text-right space-x-2">
             <button onclick="app.editInvoice('${inv.id}')" class="text-xs font-bold text-[#1E88E5] hover:underline">Editar</button>
@@ -582,6 +640,8 @@ const app = {
     const calc = this.calculateInvoice({ initialReading: initial, finalReading: final, neoFee, fioBDiscount, neoRate });
     document.getElementById('prevConsumption').textContent = `${calc.consumption} kWh`;
     document.getElementById('prevEnergyCost').textContent = this.formatCurrency(calc.energyCost);
+    document.getElementById('prevNeoFee').textContent = `+ ${this.formatCurrency(calc.neoFee)}`;
+    document.getElementById('prevFioBDiscount').textContent = `- ${this.formatCurrency(calc.fioBDiscount)}`;
     document.getElementById('prevTotalAcgo').textContent = this.formatCurrency(calc.acgoTotal);
     document.getElementById('prevSavings').textContent = this.formatCurrency(calc.savings);
   },
